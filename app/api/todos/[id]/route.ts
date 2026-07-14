@@ -67,7 +67,8 @@ export async function PUT(
   // Handle recurring completion: create next instance before marking done
   if (body.completed === true && todo.is_recurring && todo.recurrence_pattern && todo.due_date) {
     const nextDueDate = calculateNextDueDate(todo.due_date, todo.recurrence_pattern);
-    const nextTodo = todoDB.create(session.userId, {
+    const nextTodo = todoDB.create({
+      user_id: session.userId,
       title: todo.title,
       due_date: nextDueDate,
       priority: todo.priority as Priority,
@@ -78,7 +79,7 @@ export async function PUT(
     // Copy tags
     const currentTags = tagDB.findByTodoId(todo.id);
     for (const tag of currentTags) {
-      tagDB.attachToTodo(nextTodo.id, tag.id, session.userId);
+      tagDB.attachToTodo(nextTodo.id, tag.id);
     }
   }
 
@@ -96,10 +97,10 @@ export async function PUT(
   if (Array.isArray(body.tag_ids)) {
     const currentTags = tagDB.findByTodoId(Number(id));
     for (const tag of currentTags) {
-      tagDB.detachFromTodo(Number(id), tag.id, session.userId);
+      tagDB.detachFromTodo(Number(id), tag.id);
     }
     for (const tagId of body.tag_ids) {
-      tagDB.attachToTodo(Number(id), tagId, session.userId);
+      tagDB.attachToTodo(Number(id), tagId);
     }
   }
 
@@ -118,8 +119,8 @@ export async function DELETE(
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { id } = await params;
-  const deleted = todoDB.delete(Number(id), session.userId);
-  if (!deleted) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
+  const todo = todoDB.findById(Number(id), session.userId);
+  if (!todo) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  todoDB.delete(Number(id), session.userId);
   return NextResponse.json({ success: true });
 }

@@ -25,7 +25,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Title is required' }, { status: 400 });
   }
 
-  const todo = todoDB.create(session.userId, {
+  const todo = todoDB.create({
+    user_id: session.userId,
     title,
     due_date: body.due_date ?? null,
     priority: body.priority ?? 'medium',
@@ -37,7 +38,7 @@ export async function POST(request: NextRequest) {
   // Attach tags if provided
   if (Array.isArray(body.tag_ids)) {
     for (const tagId of body.tag_ids) {
-      tagDB.attachToTodo(todo.id, tagId, session.userId);
+      tagDB.attachToTodo(todo.id, tagId);
     }
   }
 

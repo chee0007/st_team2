@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const tag = tagDB.create(session.userId, { name: trimmed, color: color ?? '#3B82F6' });
+    const tag = tagDB.create({ user_id: session.userId, name: trimmed, color: color ?? '#3B82F6' });
     return NextResponse.json(tag, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'A tag with this name already exists' }, { status: 409 });

@@ -18,7 +18,7 @@ export async function POST(
   const { tag_id } = await request.json();
   if (!tag_id) return NextResponse.json({ error: 'tag_id is required' }, { status: 400 });
 
-  tagDB.attachToTodo(todoId, Number(tag_id), session.userId);
+  tagDB.attachToTodo(todoId, Number(tag_id));
   return NextResponse.json({ success: true });
 }
 
@@ -38,6 +38,6 @@ export async function DELETE(
   const { tag_id } = await request.json();
   if (!tag_id) return NextResponse.json({ error: 'tag_id is required' }, { status: 400 });
 
-  tagDB.detachFromTodo(todoId, Number(tag_id), session.userId);
+  tagDB.detachFromTodo(todoId, Number(tag_id));
   return NextResponse.json({ success: true });
 }

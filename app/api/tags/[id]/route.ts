@@ -39,8 +39,8 @@ export async function DELETE(
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
   const { id } = await params;
-  const deleted = tagDB.delete(Number(id), session.userId);
-  if (!deleted) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-
+  const tag = tagDB.findById(Number(id), session.userId);
+  if (!tag) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  tagDB.delete(Number(id), session.userId);
   return NextResponse.json({ success: true });
 }
