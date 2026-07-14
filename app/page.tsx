@@ -332,6 +332,8 @@ function TodoEditModal({
 
   return (
     <div
+      role="dialog"
+      aria-modal="true"
       className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
       onClick={(event) => {
         if (event.currentTarget === event.target) onCancel();
@@ -353,6 +355,7 @@ function TodoEditModal({
           <div>
             <label className="block text-sm font-medium mb-1">Priority</label>
             <select
+              aria-label="Edit priority"
               value={priority}
               onChange={(event) => setPriority(event.target.value as Priority)}
               className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm"
@@ -513,6 +516,7 @@ export default function HomePage() {
 
   const [newTitle, setNewTitle] = useState('');
   const [newPriority, setNewPriority] = useState<Priority>('medium');
+  const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
   const [newDueDate, setNewDueDate] = useState('');
   const [creatingTodo, setCreatingTodo] = useState(false);
 
@@ -536,7 +540,12 @@ export default function HomePage() {
       .then((data) => { if (data) setUsername(data.username); });
   }, [router]);
 
-  const sections = useMemo(() => sectionTodos(todos, getSingaporeNow()), [todos]);
+  const visibleTodos = useMemo(
+    () => (priorityFilter === 'all' ? todos : todos.filter((todo) => todo.priority === priorityFilter)),
+    [todos, priorityFilter]
+  );
+
+  const sections = useMemo(() => sectionTodos(visibleTodos, getSingaporeNow()), [visibleTodos]);
 
   const loadTodos = useCallback(async () => {
     setLoadingTodos(true);
@@ -770,7 +779,20 @@ export default function HomePage() {
       )}
 
       <section className="rounded-xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-gray-800 mb-6 space-y-3">
-        <h2 className="text-lg font-semibold">Add Todo</h2>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <h2 className="text-lg font-semibold">Add Todo</h2>
+          <select
+            aria-label="Priority filter"
+            value={priorityFilter}
+            onChange={(event) => setPriorityFilter(event.target.value as Priority | 'all')}
+            className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm"
+          >
+            <option value="all">All Priorities</option>
+            <option value="high">High Priority</option>
+            <option value="medium">Medium Priority</option>
+            <option value="low">Low Priority</option>
+          </select>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <input
             value={newTitle}
@@ -780,6 +802,7 @@ export default function HomePage() {
           />
 
           <select
+            aria-label="Create priority"
             value={newPriority}
             onChange={(event) => setNewPriority(event.target.value as Priority)}
             className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm"
@@ -839,7 +862,13 @@ export default function HomePage() {
             onDelete={deleteTodo}
             onSaveTemplate={openSaveTemplate}
           />
-          {todos.length === 0 && <p className="text-sm text-gray-500">No todos yet.</p>}
+          {visibleTodos.length === 0 && (
+            <p className="text-sm text-gray-500">
+              {todos.length === 0
+                ? 'No todos yet.'
+                : 'No todos match the selected priority filter.'}
+            </p>
+          )}
         </div>
       )}
 

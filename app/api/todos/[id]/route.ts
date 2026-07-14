@@ -4,11 +4,27 @@ import { getSession } from "@/lib/auth";
 import { type Priority, todoDB } from "@/lib/db";
 import { isAtLeastOneMinuteInFuture, parseISODate } from "@/lib/timezone";
 
+function isPriority(value: unknown): value is Priority {
+  return value === "high" || value === "medium" || value === "low";
+}
+
+function validateUpdatePriority(value: unknown): Priority | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (isPriority(value)) {
+    return value;
+  }
+  throw new Error(
+    `Invalid priority: ${String(value)}. Must be 'high', 'medium', or 'low'.`
+  );
+}
+
 const updateTodoSchema = z.object({
   title: z.string().trim().min(1).optional(),
   completed: z.boolean().optional(),
   due_date: z.string().datetime().nullable().optional(),
-  priority: z.enum(["high", "medium", "low"]).optional(),
+  priority: z.unknown().optional(),
 });
 
 function parseId(id: string): number | null {
@@ -58,7 +74,22 @@ export async function PUT(
   }
 
   try {
-    const input = updateTodoSchema.parse(await request.json());
+    const parsed = updateTodoSchema.safeParse(await request.json());
+    if (!parsed.success) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+    }
+
+    const input = parsed.data;
+    let priority: Priority | undefined;
+
+    try {
+      priority = validateUpdatePriority(input.priority);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : "Invalid priority" },
+        { status: 400 }
+      );
+    }
 
     if (input.due_date) {
       const parsed = parseISODate(input.due_date);
@@ -77,7 +108,7 @@ export async function PUT(
       title: input.title?.trim(),
       completed: input.completed,
       due_date: input.due_date,
-      priority: input.priority as Priority | undefined,
+      priority,
     });
 
     if (!todo) {
