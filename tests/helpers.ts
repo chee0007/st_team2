@@ -1,13 +1,20 @@
-import { Page, CDPSession } from '@playwright/test';
+import { type Page, type CDPSession } from '@playwright/test';
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Virtual authenticator setup
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── WebAuthn virtual authenticator ──────────────────────────────────────────
 
-export async function setupVirtualAuthenticator(page: Page): Promise<CDPSession> {
-  const cdp = await page.context().newCDPSession(page);
-  await cdp.send('WebAuthn.enable');
-  await cdp.send('WebAuthn.addVirtualAuthenticator', {
+export interface VirtualAuthenticator {
+  client: CDPSession;
+  authenticatorId: string;
+}
+
+/**
+ * Attaches a virtual WebAuthn authenticator to the page via CDP.
+ * Call this at the start of each test that performs registration or login.
+ */
+export async function setupVirtualAuthenticator(page: Page): Promise<VirtualAuthenticator> {
+  const client = await page.context().newCDPSession(page);
+  await client.send('WebAuthn.enable');
+  const { authenticatorId } = await client.send('WebAuthn.addVirtualAuthenticator', {
     options: {
       protocol: 'ctap2',
       transport: 'internal',
@@ -16,63 +23,75 @@ export async function setupVirtualAuthenticator(page: Page): Promise<CDPSession>
       isUserVerified: true,
     },
   });
-  return cdp;
+  return { client, authenticatorId };
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Auth helpers
-// ──────────────────────────────────────────────────────────────────────────────
+export async function teardownVirtualAuthenticator(va: VirtualAuthenticator): Promise<void> {
+  await va.client.send('WebAuthn.removeVirtualAuthenticator', {
+    authenticatorId: va.authenticatorId,
+  });
+}
 
+// ─── Auth helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * Registers a new user with the given username.
+ * Assumes a virtual authenticator is already attached to the page.
+ */
 export async function register(page: Page, username: string): Promise<void> {
   await page.goto('/login');
-  await page.getByLabel('Username').fill(username);
-  await page.getByRole('button', { name: 'Register' }).click();
+  await page.fill('#username', username);
+  await page.click('button:has-text("Register")');
   await page.waitForURL('/');
 }
 
+/**
+ * Logs in an existing user.
+ * Assumes a virtual authenticator is already attached to the page.
+ */
 export async function login(page: Page, username: string): Promise<void> {
   await page.goto('/login');
-  await page.getByLabel('Username').fill(username);
-  await page.getByRole('button', { name: 'Login' }).click();
+  await page.fill('#username', username);
+  await page.click('button:has-text("Login")');
   await page.waitForURL('/');
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Todo helpers
-// ──────────────────────────────────────────────────────────────────────────────
+// ─── Todo helpers (stub — implemented by Person 2) ────────────────────────────
 
-export async function createTodo(page: Page, title: string, options?: {
-  priority?: 'high' | 'medium' | 'low';
-  dueDate?: string;
-}): Promise<void> {
-  await page.getByPlaceholder('Add a new todo…').fill(title);
-  if (options?.priority) {
-    await page.locator('select').first().selectOption(options.priority);
-  }
-  if (options?.dueDate) {
-    await page.locator('input[type="datetime-local"]').fill(options.dueDate);
-  }
-  await page.getByRole('button', { name: 'Add' }).click();
-  await page.waitForSelector(`text=${title}`);
+export async function createTodo(
+  page: Page,
+  options: { title: string; priority?: string },
+): Promise<void> {
+  // TODO: Implement when Person 2 builds the main UI
+  void page;
+  void options;
 }
 
-// ──────────────────────────────────────────────────────────────────────────────
-// Tag helpers
-// ──────────────────────────────────────────────────────────────────────────────
-
-export async function openManageTags(page: Page): Promise<void> {
-  await page.getByRole('button', { name: '+ Manage Tags' }).click();
-  await page.waitForSelector('text=Manage Tags');
+export async function addSubtask(
+  page: Page,
+  todoTitle: string,
+  subtaskTitle: string,
+): Promise<void> {
+  // TODO: Implement when Person 3 builds subtasks UI
+  void page;
+  void todoTitle;
+  void subtaskTitle;
 }
 
-export async function createTag(page: Page, name: string, color?: string): Promise<void> {
-  await openManageTags(page);
-  await page.getByPlaceholder('Tag name').fill(name);
-  if (color) {
-    // Fill the hex input
-    await page.locator('input.font-mono').last().fill(color);
-  }
-  await page.getByRole('button', { name: 'Create' }).click();
-  await page.waitForSelector(`text=${name}`);
-  await page.getByRole('button', { name: 'Close' }).click();
+export async function createTag(
+  page: Page,
+  options: { name: string; color?: string },
+): Promise<void> {
+  // TODO: Implement when Person 4 builds tags UI
+  void page;
+  void options;
+}
+
+export async function createTemplate(
+  page: Page,
+  options: { name: string; titleTemplate: string },
+): Promise<void> {
+  // TODO: Implement when Person 3 builds templates UI
+  void page;
+  void options;
 }

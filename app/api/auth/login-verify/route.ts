@@ -1,69 +1,59 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { verifyAuthenticationResponse } from '@simplewebauthn/server';
 import { isoBase64URL } from '@simplewebauthn/server/helpers';
 import { userDB, authenticatorDB } from '@/lib/db';
-import { createSession } from '@/lib/auth';
-import { challengeStore } from '@/lib/challengeStore';
-
-const RP_ID = process.env.NEXT_PUBLIC_RP_ID ?? 'localhost';
-const ORIGIN = process.env.NEXT_PUBLIC_ORIGIN ?? 'http://localhost:3000';
+import { challengeStore, createSession } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
-  const { username, response } = await request.json();
-  if (!username?.trim()) {
+  const body = await request.json();
+  const username = String(body.username ?? '').trim();
+
+  if (!username) {
     return NextResponse.json({ error: 'Username is required' }, { status: 400 });
   }
-  const trimmed = username.trim();
 
-  const challenge = challengeStore.get(`login:${trimmed}`);
-  if (!challenge) {
-    return NextResponse.json({ error: 'No pending login' }, { status: 400 });
+  const expectedChallenge = challengeStore.consume(username);
+  if (!expectedChallenge) {
+    return NextResponse.json(
+      { error: 'Challenge expired or not found. Please start login again.' },
+      { status: 400 },
+    );
   }
 
-  const user = userDB.findByUsername(trimmed);
+  const authenticator = authenticatorDB.findByCredentialId(body.response.id);
+  if (!authenticator) {
+    return NextResponse.json({ error: 'Authenticator not recognized' }, { status: 401 });
+  }
+
+  const verification = await verifyAuthenticationResponse({
+    response: body.response,
+    expectedChallenge,
+    expectedOrigin: process.env.RP_ORIGIN ?? 'http://localhost:3000',
+    expectedRPID: process.env.RP_ID ?? 'localhost',
+    authenticator: {
+      credentialID: isoBase64URL.toBuffer(authenticator.credential_id),
+      credentialPublicKey: authenticator.credential_public_key,
+      // Always coalesce — counter can be undefined on some authenticator records.
+      counter: authenticator.counter ?? 0,
+    },
+  });
+
+  if (!verification.verified) {
+    return NextResponse.json({ error: 'Verification failed' }, { status: 401 });
+  }
+
+  // Update counter (clone-attack defence; verifyAuthenticationResponse already validates the increment)
+  authenticatorDB.updateCounter(
+    authenticator.id,
+    verification.authenticationInfo.newCounter ?? 0,
+  );
+
+  const user = userDB.findById(authenticator.user_id);
   if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    return NextResponse.json({ error: 'User not found' }, { status: 401 });
   }
 
-  const credentialId = response.id;
-  const authenticator = authenticatorDB.findByCredentialId(credentialId);
-  if (!authenticator || authenticator.user_id !== user.id) {
-    return NextResponse.json({ error: 'Credential not found' }, { status: 400 });
-  }
+  await createSession(user);
 
-  try {
-    const verification = await verifyAuthenticationResponse({
-      response,
-      expectedChallenge: challenge,
-      expectedOrigin: ORIGIN,
-      expectedRPID: RP_ID,
-      credential: {
-        id: authenticator.credential_id,
-        publicKey: new Uint8Array(authenticator.credential_public_key),
-        counter: authenticator.counter ?? 0,
-      },
-    });
-
-    if (!verification.verified) {
-      return NextResponse.json({ error: 'Verification failed' }, { status: 400 });
-    }
-
-    const newCounter = verification.authenticationInfo.newCounter;
-    const storedCounter = authenticator.counter ?? 0;
-
-    // Clone-attack defense: counter must advance (unless both are 0)
-    if (newCounter !== 0 || storedCounter !== 0) {
-      if (newCounter <= storedCounter) {
-        return NextResponse.json({ error: 'Counter regression detected' }, { status: 400 });
-      }
-    }
-
-    authenticatorDB.updateCounter(authenticator.id, newCounter);
-    challengeStore.delete(`login:${trimmed}`);
-
-    await createSession({ userId: user.id, username: user.username });
-    return NextResponse.json({ verified: true });
-  } catch {
-    return NextResponse.json({ error: 'Authentication failed' }, { status: 500 });
-  }
+  return NextResponse.json({ success: true });
 }

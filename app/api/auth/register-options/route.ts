@@ -1,41 +1,35 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { generateRegistrationOptions } from '@simplewebauthn/server';
-import { userDB, authenticatorDB } from '@/lib/db';
-import { challengeStore } from '@/lib/challengeStore';
-
-const RP_NAME = 'Todo App';
-const RP_ID = process.env.NEXT_PUBLIC_RP_ID ?? 'localhost';
+import { userDB } from '@/lib/db';
+import { challengeStore } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
-  const { username } = await request.json();
-  if (!username?.trim()) {
+  const body = await request.json();
+  const username = String(body.username ?? '').trim();
+
+  if (!username) {
     return NextResponse.json({ error: 'Username is required' }, { status: 400 });
   }
-  const trimmed = username.trim();
 
-  let user = userDB.findByUsername(trimmed);
-  if (!user) {
-    user = userDB.create(trimmed);
+  // 409 before generating any challenge — prevents username enumeration
+  if (userDB.findByUsername(username)) {
+    return NextResponse.json({ error: 'Username already taken' }, { status: 409 });
   }
 
-  const authenticators = authenticatorDB.findAllByUser(user.id);
-
   const options = await generateRegistrationOptions({
-    rpName: RP_NAME,
-    rpID: RP_ID,
-    userID: new Uint8Array(Buffer.from(String(user.id))),
-    userName: user.username,
-    excludeCredentials: authenticators.map((a) => ({
-      id: a.credential_id,
-      transports: [],
-    })),
+    rpName: process.env.RP_NAME ?? 'Todo App',
+    rpID: process.env.RP_ID ?? 'localhost',
+    userID: username,
+    userName: username,
+    attestationType: 'none',
+    excludeCredentials: [],
     authenticatorSelection: {
-      residentKey: 'preferred',
+      residentKey: 'required',
       userVerification: 'preferred',
     },
   });
 
-  challengeStore.set(`reg:${trimmed}`, options.challenge);
+  challengeStore.save(username, options.challenge);
 
-  return NextResponse.json({ options, userId: user.id });
+  return NextResponse.json(options);
 }
