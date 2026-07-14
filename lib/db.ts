@@ -164,6 +164,9 @@ db.exec(`
     PRIMARY KEY (todo_id, tag_id)
   );
 
+  CREATE INDEX IF NOT EXISTS idx_tags_user_id ON tags(user_id);
+  CREATE INDEX IF NOT EXISTS idx_todo_tags_tag_id ON todo_tags(tag_id);
+
   CREATE TABLE IF NOT EXISTS templates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -411,6 +414,34 @@ export const tagDB = {
          WHERE tt.todo_id = ?`,
       )
       .all(todoId) as Tag[];
+  },
+
+  findByTodoIds(todoIds: number[]): Map<number, Tag[]> {
+    const tagMap = new Map<number, Tag[]>();
+    if (todoIds.length === 0) return tagMap;
+
+    const placeholders = todoIds.map(() => '?').join(',');
+    const rows = db
+      .prepare(
+        `SELECT tt.todo_id, t.* FROM tags t
+         JOIN todo_tags tt ON tt.tag_id = t.id
+         WHERE tt.todo_id IN (${placeholders})`,
+      )
+      .all(...todoIds) as Array<Tag & { todo_id: number }>;
+
+    for (const row of rows) {
+      const current = tagMap.get(row.todo_id) ?? [];
+      current.push({
+        id: row.id,
+        user_id: row.user_id,
+        name: row.name,
+        color: row.color,
+        created_at: row.created_at,
+      });
+      tagMap.set(row.todo_id, current);
+    }
+
+    return tagMap;
   },
 
   create(data: { user_id: number; name: string; color?: string }): Tag {

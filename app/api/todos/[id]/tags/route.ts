@@ -18,7 +18,15 @@ export async function POST(
   const { tag_id } = await request.json();
   if (!tag_id) return NextResponse.json({ error: 'tag_id is required' }, { status: 400 });
 
-  tagDB.attachToTodo(todoId, Number(tag_id));
+  const tagId = Number(tag_id);
+  if (!Number.isInteger(tagId) || tagId <= 0) {
+    return NextResponse.json({ error: 'tag_id is required' }, { status: 400 });
+  }
+
+  const tag = tagDB.findById(tagId, session.userId);
+  if (!tag) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  tagDB.attachToTodo(todoId, tagId);
   return NextResponse.json({ success: true });
 }
 
@@ -38,6 +46,14 @@ export async function DELETE(
   const { tag_id } = await request.json();
   if (!tag_id) return NextResponse.json({ error: 'tag_id is required' }, { status: 400 });
 
-  tagDB.detachFromTodo(todoId, Number(tag_id));
+  const tagId = Number(tag_id);
+  if (!Number.isInteger(tagId) || tagId <= 0) {
+    return NextResponse.json({ error: 'tag_id is required' }, { status: 400 });
+  }
+
+  const tag = tagDB.findById(tagId, session.userId);
+  if (!tag) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+
+  tagDB.detachFromTodo(todoId, tagId);
   return NextResponse.json({ success: true });
 }

@@ -13,7 +13,16 @@ export const JWT_SECRET = new TextEncoder().encode(
 
 // ─── Challenge store (in-memory, single-use, 5-minute TTL) ───────────────────
 
-const _challenges = new Map<string, { challenge: string; expiresAt: number }>();
+declare global {
+  // eslint-disable-next-line no-var
+  var __authChallenges: Map<string, { challenge: string; expiresAt: number }> | undefined;
+}
+
+if (!globalThis.__authChallenges) {
+  globalThis.__authChallenges = new Map<string, { challenge: string; expiresAt: number }>();
+}
+
+const _challenges = globalThis.__authChallenges;
 
 export const challengeStore = {
   save(key: string, challenge: string): void {

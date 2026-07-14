@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
-import { type Priority, todoDB } from "@/lib/db";
+import { tagDB, type Priority, todoDB } from "@/lib/db";
 import { isAtLeastOneMinuteInFuture, parseISODate } from "@/lib/timezone";
 
 const prioritySchema = z.enum(["high", "medium", "low"]);
@@ -19,7 +19,12 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const todos = todoDB.findAllByUser(session.userId);
-  return NextResponse.json({ success: true, data: todos });
+  const tagMap = tagDB.findByTodoIds(todos.map((todo) => todo.id));
+  const withTags = todos.map((todo) => ({
+    ...todo,
+    tags: tagMap.get(todo.id) ?? [],
+  }));
+  return NextResponse.json({ success: true, data: withTags });
 }
 
 export async function POST(request: Request): Promise<NextResponse> {
@@ -53,7 +58,10 @@ export async function POST(request: Request): Promise<NextResponse> {
       priority: (input.priority ?? "medium") as Priority,
     });
 
-    return NextResponse.json({ success: true, data: todo }, { status: 201 });
+    return NextResponse.json(
+      { success: true, data: { ...todo, tags: [] } },
+      { status: 201 }
+    );
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }

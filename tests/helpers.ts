@@ -62,9 +62,9 @@ export async function createTodo(
   page: Page,
   options: { title: string; priority?: string },
 ): Promise<void> {
-  // TODO: Implement when Person 2 builds the main UI
-  void page;
-  void options;
+  await page.getByPlaceholder('Add a new todo…').fill(options.title);
+  await page.getByRole('button', { name: 'Add' }).click();
+  await page.getByText(options.title).first().waitFor();
 }
 
 export async function addSubtask(
@@ -82,9 +82,17 @@ export async function createTag(
   page: Page,
   options: { name: string; color?: string },
 ): Promise<void> {
-  // TODO: Implement when Person 4 builds tags UI
-  void page;
-  void options;
+  await openManageTags(page);
+  await page.getByPlaceholder('Tag name').last().fill(options.name);
+  if (options.color) {
+    await page.getByLabel('Tag color hex').fill(options.color);
+  }
+  await page.getByRole('button', { name: 'Create' }).click();
+  await page.getByRole('button', { name: 'Close' }).click();
+}
+
+export async function openManageTags(page: Page): Promise<void> {
+  await page.getByRole('button', { name: /Manage Tags/ }).click();
 }
 
 export async function createTemplate(

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
-import { type Priority, todoDB } from "@/lib/db";
+import { tagDB, type Priority, todoDB } from "@/lib/db";
 import { isAtLeastOneMinuteInFuture, parseISODate } from "@/lib/timezone";
 
 const updateTodoSchema = z.object({
@@ -39,7 +39,13 @@ export async function GET(
     return NextResponse.json({ error: "Todo not found" }, { status: 404 });
   }
 
-  return NextResponse.json({ success: true, data: todo });
+  return NextResponse.json({
+    success: true,
+    data: {
+      ...todo,
+      tags: tagDB.findByTodoId(todo.id),
+    },
+  });
 }
 
 export async function PUT(
@@ -84,7 +90,13 @@ export async function PUT(
       return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, data: todo });
+    return NextResponse.json({
+      success: true,
+      data: {
+        ...todo,
+        tags: tagDB.findByTodoId(todo.id),
+      },
+    });
   } catch {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }

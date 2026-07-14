@@ -1,25 +1,28 @@
 import { test, expect } from '@playwright/test';
-import { setupVirtualAuthenticator, register, createTodo, createTag, openManageTags } from './helpers';
+import { setupVirtualAuthenticator, register, openManageTags } from './helpers';
 
-const TEST_USER = `tagtest_${Date.now()}`;
+function uniqueUser() {
+  return `tagtest_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+}
 
 test.describe('Tag System', () => {
   test.beforeEach(async ({ page }) => {
     await setupVirtualAuthenticator(page);
-    await register(page, TEST_USER);
+    await register(page, uniqueUser());
     await page.waitForURL('/');
   });
 
   test('create a tag via Manage Tags modal and verify it appears in pill selector', async ({ page }) => {
     await openManageTags(page);
+    const modal = page.getByRole('dialog');
 
-    await page.getByPlaceholder('Tag name').fill('Work');
-    await page.getByRole('button', { name: 'Create' }).click();
+    await modal.getByPlaceholder('Tag name').fill('Work');
+    await modal.getByRole('button', { name: /^Create$/ }).click();
 
     // Tag appears in the list inside the modal
-    await expect(page.locator('ul').getByText('Work')).toBeVisible();
+    await expect(modal.locator('ul').getByText('Work')).toBeVisible();
 
-    await page.getByRole('button', { name: 'Close' }).click();
+    await modal.getByRole('button', { name: 'Close' }).click();
 
     // Tag pill appears below the form
     await expect(page.getByRole('button', { name: 'Work' }).first()).toBeVisible();
@@ -28,9 +31,10 @@ test.describe('Tag System', () => {
   test('edit a tag name/color and verify propagation to todo', async ({ page }) => {
     // Create tag and a todo with it
     await openManageTags(page);
-    await page.getByPlaceholder('Tag name').fill('OldName');
-    await page.getByRole('button', { name: 'Create' }).click();
-    await page.getByRole('button', { name: 'Close' }).click();
+    let modal = page.getByRole('dialog');
+    await modal.getByPlaceholder('Tag name').fill('OldName');
+    await modal.getByRole('button', { name: /^Create$/ }).click();
+    await modal.getByRole('button', { name: 'Close' }).click();
 
     // Select the tag on the form and add a todo
     await page.getByRole('button', { name: 'OldName' }).first().click();
@@ -40,24 +44,24 @@ test.describe('Tag System', () => {
 
     // Now edit the tag name
     await openManageTags(page);
-    await page.getByRole('button', { name: 'Edit' }).first().click();
-    const nameInput = page.locator('input[placeholder]').first();
+    modal = page.getByRole('dialog');
+    await modal.getByRole('button', { name: 'Edit' }).first().click();
+    const nameInput = modal.getByPlaceholder('Tag name').first();
     await nameInput.fill('NewName');
-    await page.getByRole('button', { name: 'Save' }).click();
-    await page.getByRole('button', { name: 'Close' }).click();
+    await modal.getByRole('button', { name: /^Save$/ }).click();
+    await modal.getByRole('button', { name: 'Close' }).click();
 
     // The todo card now shows the new tag name
     await expect(page.getByText('NewName').first()).toBeVisible();
-    await expect(page.queryByText('OldName')).toBeHidden().catch(() => {
-      // queryByText not available — use locator
-    });
+    await expect(page.getByText('OldName')).toHaveCount(0);
   });
 
   test('delete a tag and verify it disappears from todos', async ({ page }) => {
     await openManageTags(page);
-    await page.getByPlaceholder('Tag name').fill('ToDelete');
-    await page.getByRole('button', { name: 'Create' }).click();
-    await page.getByRole('button', { name: 'Close' }).click();
+    let modal = page.getByRole('dialog');
+    await modal.getByPlaceholder('Tag name').fill('ToDelete');
+    await modal.getByRole('button', { name: /^Create$/ }).click();
+    await modal.getByRole('button', { name: 'Close' }).click();
 
     // Attach to a todo
     await page.getByRole('button', { name: 'ToDelete' }).first().click();
@@ -67,34 +71,38 @@ test.describe('Tag System', () => {
 
     // Delete the tag
     await openManageTags(page);
+    modal = page.getByRole('dialog');
     page.on('dialog', (d) => d.accept());
-    await page.getByRole('button', { name: 'Delete' }).first().click();
-    await page.getByRole('button', { name: 'Close' }).click();
+    await modal.getByRole('button', { name: /^Delete$/ }).first().click();
+    await modal.getByRole('button', { name: 'Close' }).click();
 
     // Tag no longer appears on the todo card
-    await expect(page.getByText('ToDelete')).toBeHidden();
+    const todoCard = page.getByRole('article').filter({ hasText: 'Todo with tag' }).first();
+    await expect(todoCard.getByRole('button', { name: 'ToDelete' })).toHaveCount(0);
   });
 
   test('duplicate tag name for same user shows error', async ({ page }) => {
     await openManageTags(page);
-    await page.getByPlaceholder('Tag name').fill('DupTag');
-    await page.getByRole('button', { name: 'Create' }).click();
+    const modal = page.getByRole('dialog');
+    await modal.getByPlaceholder('Tag name').fill('DupTag');
+    await modal.getByRole('button', { name: /^Create$/ }).click();
 
     // Try creating again with same name
-    await page.getByPlaceholder('Tag name').fill('DupTag');
-    await page.getByRole('button', { name: 'Create' }).click();
+    await modal.getByPlaceholder('Tag name').fill('DupTag');
+    await modal.getByRole('button', { name: /^Create$/ }).click();
 
-    await expect(page.getByText('A tag with this name already exists')).toBeVisible();
+    await expect(modal.getByText('A tag with this name already exists')).toBeVisible();
   });
 
   test('assign two tags to one todo and verify both render', async ({ page }) => {
     // Create two tags
     await openManageTags(page);
-    await page.getByPlaceholder('Tag name').fill('Alpha');
-    await page.getByRole('button', { name: 'Create' }).click();
-    await page.getByPlaceholder('Tag name').fill('Beta');
-    await page.getByRole('button', { name: 'Create' }).click();
-    await page.getByRole('button', { name: 'Close' }).click();
+    const modal = page.getByRole('dialog');
+    await modal.getByPlaceholder('Tag name').fill('Alpha');
+    await modal.getByRole('button', { name: /^Create$/ }).click();
+    await modal.getByPlaceholder('Tag name').fill('Beta');
+    await modal.getByRole('button', { name: /^Create$/ }).click();
+    await modal.getByRole('button', { name: 'Close' }).click();
 
     // Select both tags
     const tagPills = page.locator('form').locator('button', { hasText: /Alpha|Beta/ });
@@ -107,7 +115,7 @@ test.describe('Tag System', () => {
     await page.waitForSelector('text=Multi-tagged todo');
 
     // Both tags appear on the todo card
-    const todoCard = page.locator('.bg-white, .dark\\:bg-gray-800').filter({ hasText: 'Multi-tagged todo' }).first();
+    const todoCard = page.getByRole('article').filter({ hasText: 'Multi-tagged todo' }).first();
     await expect(todoCard.getByText('Alpha')).toBeVisible();
     await expect(todoCard.getByText('Beta')).toBeVisible();
   });
@@ -115,9 +123,10 @@ test.describe('Tag System', () => {
   test('filter by tag shows only matching todos, clear via All Tags', async ({ page }) => {
     // Create two tags and two todos
     await openManageTags(page);
-    await page.getByPlaceholder('Tag name').fill('FilterTag');
-    await page.getByRole('button', { name: 'Create' }).click();
-    await page.getByRole('button', { name: 'Close' }).click();
+    const modal = page.getByRole('dialog');
+    await modal.getByPlaceholder('Tag name').fill('FilterTag');
+    await modal.getByRole('button', { name: /^Create$/ }).click();
+    await modal.getByRole('button', { name: 'Close' }).click();
 
     // Todo 1: with FilterTag
     await page.getByRole('button', { name: 'FilterTag' }).first().click();
