@@ -101,3 +101,15 @@ export async function createTemplate(
   void page;
   void options;
 }
+
+/**
+ * Opens the Manage Tags modal.
+ * Requires the tags button/link to be visible on the current page.
+ */
+export async function openManageTags(page: Page): Promise<void> {
+  // Try common selectors for the Manage Tags button
+  const btn = page
+    .getByRole('button', { name: /manage tags/i })
+    .or(page.getByText(/manage tags/i));
+  await btn.click();
+}

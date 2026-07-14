@@ -48,9 +48,7 @@ test.describe('Tag System', () => {
 
     // The todo card now shows the new tag name
     await expect(page.getByText('NewName').first()).toBeVisible();
-    await expect(page.queryByText('OldName')).toBeHidden().catch(() => {
-      // queryByText not available — use locator
-    });
+    await expect(page.getByText('OldName')).not.toBeVisible();
   });
 
   test('delete a tag and verify it disappears from todos', async ({ page }) => {
