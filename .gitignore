@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Database file (contains user data — never commit)
+todos.db
+todos.db-shm
+todos.db-wal
+
+# Local environment variables (contains secrets — never commit)
+.env.local
+.env*.local
+
+# Test results
+playwright-report/
+test-results/
+
+# Misc
+.DS_Store
+*.pem
+npm-debug.log*
