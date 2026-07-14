@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calculateNextDueDate } from '../src/lib/recurrence';
+import { calculateNextDueDate } from '../lib/recurrence';
 
 describe('calculateNextDueDate', () => {
   it('daily adds one day and preserves time', () => {

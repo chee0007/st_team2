@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
-import { type Priority, todoDB } from "@/lib/db";
+import { type Priority, type RecurrencePattern, todoDB } from "@/lib/db";
 import { isAtLeastOneMinuteInFuture, parseISODate } from "@/lib/timezone";
 
 const prioritySchema = z.enum(["high", "medium", "low"]);
@@ -26,6 +26,8 @@ const createTodoSchema = z.object({
   title: z.string().trim().min(1),
   due_date: z.string().datetime().nullable().optional(),
   priority: z.unknown().optional(),
+  is_recurring: z.boolean().optional(),
+  recurrence_pattern: z.enum(["daily", "weekly", "monthly", "yearly"]).nullable().optional(),
 });
 
 export async function GET(request: Request): Promise<NextResponse> {
@@ -89,11 +91,30 @@ export async function POST(request: Request): Promise<NextResponse> {
       }
     }
 
+    const isRecurring = input.is_recurring ?? false;
+    const recurrencePattern = input.recurrence_pattern ?? null;
+
+    if (isRecurring && !dueDate) {
+      return NextResponse.json(
+        { error: "Recurring todos require a due date" },
+        { status: 400 }
+      );
+    }
+
+    if (isRecurring && !recurrencePattern) {
+      return NextResponse.json(
+        { error: "Recurring todos require a recurrence pattern" },
+        { status: 400 }
+      );
+    }
+
     const todo = todoDB.create({
       user_id: session.userId,
       title,
       due_date: dueDate,
       priority,
+      is_recurring: isRecurring,
+      recurrence_pattern: recurrencePattern,
     });
 
     return NextResponse.json({ success: true, data: todo }, { status: 201 });

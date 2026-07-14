@@ -88,3 +88,57 @@ function formatToSingapore(date: Date): string {
 
   return `${year}-${month}-${day}T${hour}:${minute}:${second}+08:00`;
 }
+
+// ─── Recurrence helpers ──────────────────────────────────────────────────────
+
+export type SingaporeParts = {
+  year: number;
+  month: number; // 1-12
+  day: number;
+  hour: number;
+  minute: number;
+  second: number;
+};
+
+export function parseIsoLike(dateStr: string): SingaporeParts {
+  const m = dateStr.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?(.*)$/);
+  if (!m) throw new Error('Invalid date format');
+  const [, y, mo, d, hh, mm, ss] = m;
+  return {
+    year: Number(y),
+    month: Number(mo),
+    day: Number(d),
+    hour: Number(hh),
+    minute: Number(mm),
+    second: ss ? Number(ss) : 0,
+  };
+}
+
+export function toSingaporeParts(dateStr: string): SingaporeParts {
+  const parsed = parseIsoLike(dateStr);
+  const utcMillis = Date.UTC(parsed.year, parsed.month - 1, parsed.day, parsed.hour, parsed.minute, parsed.second);
+  const sgt = new Date(utcMillis + 8 * 60 * 60 * 1000);
+  return {
+    year: sgt.getUTCFullYear(),
+    month: sgt.getUTCMonth() + 1,
+    day: sgt.getUTCDate(),
+    hour: sgt.getUTCHours(),
+    minute: sgt.getUTCMinutes(),
+    second: sgt.getUTCSeconds(),
+  };
+}
+
+export function fromSingaporeParts(parts: { year: number; month: number; day: number }, hour = 0, minute = 0): string {
+  const y = String(parts.year).padStart(4, '0');
+  const m = String(parts.month).padStart(2, '0');
+  const d = String(parts.day).padStart(2, '0');
+  const hh = String(hour).padStart(2, '0');
+  const mm = String(minute).padStart(2, '0');
+  return `${y}-${m}-${d}T${hh}:${mm}:00+08:00`;
+}
+
+export function addDays(parts: { year: number; month: number; day: number }, days: number) {
+  const dt = new Date(Date.UTC(parts.year, parts.month - 1, parts.day));
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return { year: dt.getUTCFullYear(), month: dt.getUTCMonth() + 1, day: dt.getUTCDate() };
+}

@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getSession } from "@/lib/auth";
-import { type Priority, todoDB } from "@/lib/db";
+import { type Priority, type RecurrencePattern, todoDB, tagDB } from "@/lib/db";
 import { isAtLeastOneMinuteInFuture, parseISODate } from "@/lib/timezone";
+import { calculateNextDueDate } from "@/lib/recurrence";
 
 function isPriority(value: unknown): value is Priority {
   return value === "high" || value === "medium" || value === "low";
@@ -25,6 +26,8 @@ const updateTodoSchema = z.object({
   completed: z.boolean().optional(),
   due_date: z.string().datetime().nullable().optional(),
   priority: z.unknown().optional(),
+  is_recurring: z.boolean().optional(),
+  recurrence_pattern: z.enum(["daily", "weekly", "monthly", "yearly"]).nullable().optional(),
 });
 
 function parseId(id: string): number | null {
@@ -104,15 +107,54 @@ export async function PUT(
       }
     }
 
+    const existing = todoDB.findById(todoId, session.userId);
+    if (!existing) {
+      return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+    }
+
+    const isRecurring = input.is_recurring !== undefined ? input.is_recurring : existing.is_recurring;
+    const recurrencePattern = input.recurrence_pattern !== undefined ? input.recurrence_pattern : existing.recurrence_pattern;
+
+    if (isRecurring && !existing.due_date && !input.due_date) {
+      return NextResponse.json(
+        { error: "Recurring todos require a due date" },
+        { status: 400 }
+      );
+    }
+
     const todo = todoDB.update(todoId, session.userId, {
       title: input.title?.trim(),
       completed: input.completed,
       due_date: input.due_date,
       priority,
+      is_recurring: input.is_recurring,
+      recurrence_pattern: input.recurrence_pattern,
     });
 
     if (!todo) {
       return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+    }
+
+    const justCompleted = input.completed === true && existing.completed === false;
+    if (justCompleted && existing.is_recurring && existing.recurrence_pattern && existing.due_date) {
+      const nextDueDate = calculateNextDueDate(existing.due_date, existing.recurrence_pattern);
+
+      const nextInstance = todoDB.create({
+        user_id: session.userId,
+        title: existing.title,
+        priority: existing.priority,
+        is_recurring: true,
+        recurrence_pattern: existing.recurrence_pattern,
+        reminder_minutes: existing.reminder_minutes ?? null,
+        due_date: nextDueDate,
+      });
+
+      const tagIds = tagDB.getTagIdsForTodo(existing.id);
+      if (tagIds.length > 0) {
+        tagDB.setTodoTags(nextInstance.id, tagIds);
+      }
+
+      return NextResponse.json({ success: true, data: todo, nextInstance });
     }
 
     return NextResponse.json({ success: true, data: todo });

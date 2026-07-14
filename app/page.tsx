@@ -518,6 +518,8 @@ export default function HomePage() {
   const [newPriority, setNewPriority] = useState<Priority>('medium');
   const [priorityFilter, setPriorityFilter] = useState<Priority | 'all'>('all');
   const [newDueDate, setNewDueDate] = useState('');
+  const [newIsRecurring, setNewIsRecurring] = useState(false);
+  const [newRecurrencePattern, setNewRecurrencePattern] = useState<RecurrencePattern>('weekly');
   const [creatingTodo, setCreatingTodo] = useState(false);
 
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
@@ -679,8 +681,8 @@ export default function HomePage() {
       completed: false,
       due_date: dueDate,
       priority: newPriority,
-      is_recurring: false,
-      recurrence_pattern: null,
+      is_recurring: newIsRecurring,
+      recurrence_pattern: newIsRecurring ? newRecurrencePattern : null,
       reminder_minutes: null,
       last_notification_sent: null,
       created_at: getSingaporeNow().toISOString(),
@@ -695,7 +697,13 @@ export default function HomePage() {
       const res = await fetch('/api/todos', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, priority: newPriority, due_date: dueDate }),
+        body: JSON.stringify({
+          title,
+          priority: newPriority,
+          due_date: dueDate,
+          is_recurring: newIsRecurring,
+          recurrence_pattern: newIsRecurring ? newRecurrencePattern : null,
+        }),
       });
 
       const payload = (await res.json()) as TodoResponse | { error?: string };
@@ -707,6 +715,8 @@ export default function HomePage() {
       setNewTitle('');
       setNewPriority('medium');
       setNewDueDate('');
+      setNewIsRecurring(false);
+      setNewRecurrencePattern('weekly');
     } catch (error) {
       setTodos((prev) => prev.filter((todo) => todo.id !== optimisticId));
       setTodoError(error instanceof Error ? error.message : 'Failed to create todo');
@@ -730,11 +740,19 @@ export default function HomePage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ completed }),
       });
-      const payload = (await res.json()) as TodoResponse | { error?: string };
+      const payload = (await res.json()) as (TodoResponse & { nextInstance?: Todo }) | { error?: string };
       if (!res.ok || !('success' in payload) || !payload.success) {
         throw new Error('error' in payload ? payload.error : 'Failed to update todo');
       }
-      setTodos((prev) => prev.map((item) => (item.id === todo.id ? payload.data : item)));
+      
+      // Update the completed todo and add the next instance if it was created
+      setTodos((prev) => {
+        const updated = prev.map((item) => (item.id === todo.id ? payload.data : item));
+        if (payload.nextInstance) {
+          return [payload.nextInstance, ...updated];
+        }
+        return updated;
+      });
     } catch (error) {
       setTodos((prev) => prev.map((item) => (item.id === todo.id ? previous : item)));
       setTodoError(error instanceof Error ? error.message : 'Failed to update todo');
@@ -919,6 +937,31 @@ export default function HomePage() {
             onChange={(event) => setNewDueDate(event.target.value)}
             className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm"
           />
+          <label className="flex items-center gap-1.5 text-sm text-gray-700 dark:text-gray-300 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={newIsRecurring}
+              onChange={(e) => setNewIsRecurring(e.target.checked)}
+              disabled={!newDueDate}
+              className="rounded"
+            />
+            Repeat
+          </label>
+          {newIsRecurring && (
+            <select
+              value={newRecurrencePattern}
+              onChange={(e) => setNewRecurrencePattern(e.target.value as RecurrencePattern)}
+              className="rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 px-3 py-2 text-sm"
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          )}
+          {!newDueDate && (
+            <span className="text-xs text-gray-500">Set a due date to enable repeat</span>
+          )}
           <button
             onClick={() => {
               void createTodo();

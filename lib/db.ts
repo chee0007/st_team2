@@ -550,6 +550,23 @@ export const tagDB = {
       .prepare('SELECT * FROM tags WHERE user_id = ? AND lower(name) = lower(?)')
       .get(userId, name) as Tag | undefined;
   },
+
+  getTagIdsForTodo(todoId: number): number[] {
+    const rows = db
+      .prepare('SELECT tag_id FROM todo_tags WHERE todo_id = ?')
+      .all(todoId) as { tag_id: number }[];
+    return rows.map(r => r.tag_id);
+  },
+
+  setTodoTags(todoId: number, tagIds: number[]): void {
+    db.prepare('DELETE FROM todo_tags WHERE todo_id = ?').run(todoId);
+    if (tagIds.length > 0) {
+      const stmt = db.prepare('INSERT INTO todo_tags (todo_id, tag_id) VALUES (?, ?)');
+      for (const tagId of tagIds) {
+        stmt.run(todoId, tagId);
+      }
+    }
+  },
 };
 
 // ─── templateDB ───────────────────────────────────────────────────────────────
