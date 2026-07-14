@@ -4,6 +4,26 @@ Core create, read, update, and delete functionality for todos, including Singapo
 
 **Dependencies**: This is the foundational feature. The `todos` table defined here is extended by Priority System ([02](./02-priority-system.md)), Recurring Todos ([03](./03-recurring-todos.md)), Reminders & Notifications ([04](./04-reminders-notifications.md)), Subtasks & Progress ([05](./05-subtasks-progress.md)), and Tag System ([06](./06-tag-system.md)). Implement this PRP first.
 
+## Model Routing (PRP-01 Override)
+
+Apply this model mapping for all PRP-01 implementation work:
+
+- Any task previously assigned to **Sonnet 5** must use **Sonnet 4.6**.
+- Any task previously assigned to **Haiku 4.5** must use **auto model**.
+
+PRP-01-specific routing:
+
+- **Sonnet 4.6**: API contract and correctness-critical work (auth ownership checks, due-date validation, sectioning/sorting correctness, and edge-case handling).
+- **auto model**: mechanical UI work and tests (optimistic client updates, modal interaction behavior, and CRUD E2E/unit/integration test scaffolding).
+
+Execution sequence for PRP-01:
+
+1. Sonnet 4.6 for backend route correctness and validation.
+2. Sonnet 4.6 for sorting/sectioning logic and boundary conditions.
+3. auto model for client UI wiring and optimistic state updates.
+4. auto model for test implementation in the PRP-01 test scope.
+5. Sonnet 4.6 for final consistency/regression pass.
+
 [← PRP Index](./README.md)
 
 ---
