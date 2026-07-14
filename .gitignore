@@ -20,6 +20,7 @@ todos.db-shm
 # Playwright
 playwright-report/
 test-results/
+calendar-test-results.json
 
 # pnpm (project uses npm)
 pnpm-lock.yaml

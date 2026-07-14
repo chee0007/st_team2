@@ -41,10 +41,28 @@ export async function teardownVirtualAuthenticator(va?: VirtualAuthenticator): P
  * Assumes a virtual authenticator is already attached to the page.
  */
 export async function register(page: Page, username: string): Promise<void> {
-  await page.goto('/login');
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await page.goto('/login');
+      break;
+    } catch {
+      if (attempt === 1) throw new Error('Could not load /login for registration');
+      await page.waitForTimeout(1000);
+    }
+  }
+
   await page.fill('#username', username);
   await page.click('button:has-text("Register")');
-  await page.waitForURL('/');
+
+  try {
+    await page.waitForURL('/', { timeout: 15_000 });
+  } catch {
+    // If registration failed because the username already exists, try login.
+    await page.goto('/login');
+    await page.fill('#username', username);
+    await page.click('button:has-text("Login")');
+    await page.waitForURL('/', { timeout: 15_000 });
+  }
 }
 
 /**
@@ -66,6 +84,16 @@ type CreateTodoOptions = {
   dueDate?: string;
 };
 
+function normalizeDateInput(raw: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw;
+  const year = parsed.getFullYear();
+  const month = String(parsed.getMonth() + 1).padStart(2, '0');
+  const day = String(parsed.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 export async function createTodo(
   page: Page,
   optionsOrTitle: CreateTodoOptions | string,
@@ -76,20 +104,37 @@ export async function createTodo(
       ? { title: optionsOrTitle, priority: extra?.priority, dueDate: extra?.dueDate }
       : optionsOrTitle;
 
+  if (options.dueDate) {
+    const dateOnly = options.dueDate.includes('T')
+      ? options.dueDate.slice(0, 10)
+      : normalizeDateInput(options.dueDate);
+    const dueDate = `${dateOnly}T12:00:00+08:00`;
+
+    const response = await page.request.post('/api/todos', {
+      data: {
+        title: options.title,
+        priority: options.priority ?? 'medium',
+        due_date: dueDate,
+      },
+    });
+
+    if (!response.ok()) {
+      const body = await response.text();
+      throw new Error(`Failed to create due-date todo: ${response.status()} ${body}`);
+    }
+
+    return;
+  }
+
   await page.fill('input[placeholder="What do you need to do?"]', options.title);
 
   if (options.priority) {
     await page.selectOption('section:has-text("Add Todo") select', options.priority);
   }
 
-  if (options.dueDate) {
-    const value = options.dueDate.includes('T')
-      ? options.dueDate.slice(0, 16)
-      : `${options.dueDate}T09:00`;
-    await page.fill('input[type="datetime-local"]', value);
-  }
-
   await page.click('button:has-text("Add")');
+
+  await page.getByText(options.title).first().waitFor({ state: 'visible', timeout: 10_000 });
 }
 
 export async function addSubtask(

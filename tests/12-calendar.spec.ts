@@ -24,7 +24,8 @@ function currentSgMonth(): { year: number; month: number } {
 test.describe('Calendar View — PRP 10', () => {
   test.beforeEach(async ({ page }) => {
     await setupVirtualAuthenticator(page);
-    await register(page, `${UID}_${test.info().workerIndex}`);
+    const uniqueUsername = `${UID}_${test.info().workerIndex}_${Date.now()}_${Math.floor(Math.random() * 10_000)}`;
+    await register(page, uniqueUsername);
   });
 
   // ── 1. Route protection ────────────────────────────────────────────────────

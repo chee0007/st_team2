@@ -24,7 +24,7 @@ function validateUpdatePriority(value: unknown): Priority | undefined {
 const updateTodoSchema = z.object({
   title: z.string().trim().min(1).optional(),
   completed: z.boolean().optional(),
-  due_date: z.string().datetime().nullable().optional(),
+  due_date: z.string().datetime({ offset: true }).nullable().optional(),
   priority: z.unknown().optional(),
   is_recurring: z.boolean().optional(),
   recurrence_pattern: z.enum(["daily", "weekly", "monthly", "yearly"]).nullable().optional(),
