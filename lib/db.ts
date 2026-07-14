@@ -438,6 +438,24 @@ export const todoDB = {
       tagsReused,
     };
   },
+
+  findDueReminders(userId: number): Todo[] {
+    const rows = db
+      .prepare(
+        `SELECT * FROM todos
+         WHERE user_id = ?
+           AND completed = 0
+           AND due_date IS NOT NULL
+           AND reminder_minutes IS NOT NULL
+           AND last_notification_sent IS NULL
+           AND datetime(due_date, '-' || CAST(reminder_minutes AS TEXT) || ' minutes')
+                 <= datetime('now', '+8 hours')
+           AND datetime(due_date, '-' || CAST(reminder_minutes AS TEXT) || ' minutes')
+                 >= datetime('now', '+8 hours', '-24 hours')`,
+      )
+      .all(userId) as Record<string, unknown>[];
+    return rows.map(rawToTodo);
+  },
 };
 
 // ─── subtaskDB ────────────────────────────────────────────────────────────────

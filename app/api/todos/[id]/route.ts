@@ -28,6 +28,8 @@ const updateTodoSchema = z.object({
   priority: z.unknown().optional(),
   is_recurring: z.boolean().optional(),
   recurrence_pattern: z.enum(["daily", "weekly", "monthly", "yearly"]).nullable().optional(),
+  reminder_minutes: z.number().int().nullable().optional(),
+  last_notification_sent: z.string().nullable().optional(),
 });
 
 function parseId(id: string): number | null {
@@ -129,6 +131,14 @@ export async function PUT(
       priority,
       is_recurring: input.is_recurring,
       recurrence_pattern: input.recurrence_pattern,
+      reminder_minutes: input.reminder_minutes,
+      // If reminder timing changes, re-arm reminder delivery window.
+      last_notification_sent:
+        input.last_notification_sent !== undefined
+          ? input.last_notification_sent
+          : (input.due_date !== undefined || input.reminder_minutes !== undefined)
+            ? null
+            : undefined,
     });
 
     if (!todo) {

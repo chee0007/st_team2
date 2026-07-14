@@ -1,6 +1,6 @@
-import { type Page, type CDPSession } from '@playwright/test';
+﻿import { type Page, type CDPSession } from '@playwright/test';
 
-// ─── WebAuthn virtual authenticator ──────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ WebAuthn virtual authenticator ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 export interface VirtualAuthenticator {
   client: CDPSession;
@@ -34,7 +34,7 @@ export async function teardownVirtualAuthenticator(va?: VirtualAuthenticator): P
   });
 }
 
-// ─── Auth helpers ─────────────────────────────────────────────────────────────
+// ΓöÇΓöÇΓöÇ Auth helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 /**
  * Registers a new user with the given username.
@@ -58,7 +58,7 @@ export async function login(page: Page, username: string): Promise<void> {
   await page.waitForURL('/');
 }
 
-// ─── Todo helpers (stub — implemented by Person 2) ────────────────────────────
+// ΓöÇΓöÇΓöÇ Todo helpers (stub ΓÇö implemented by Person 2) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 export async function createTodo(
   page: Page,
