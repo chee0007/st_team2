@@ -1,11 +1,11 @@
-'use client';
+﻿'use client';
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { generateCalendarGrid, prevMonth, nextMonth, type CalendarDay } from '@/lib/calendar';
 import type { Holiday, Todo } from '@/lib/db';
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ Helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 function parseMonthParam(raw: string | null): { year: number; month: number } {
   if (raw && /^\d{4}-\d{2}$/.test(raw)) {
@@ -22,7 +22,7 @@ function sgNow(): { year: number; month: number } {
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
 }
 
-// ── Priority pill styles ───────────────────────────────────────────────────────
+// ΓöÇΓöÇ Priority pill styles ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const PILL_CLASS: Record<string, string> = {
   high:   'bg-red-100 text-red-700 dark:bg-red-900/60 dark:text-red-300',
@@ -30,7 +30,7 @@ const PILL_CLASS: Record<string, string> = {
   low:    'bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300',
 };
 
-// ── DayTodosModal ─────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ DayTodosModal ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 function DayTodosModal({
   date,
@@ -70,13 +70,13 @@ function DayTodosModal({
             aria-label="Close"
             className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 text-xl leading-none shrink-0"
           >
-            ✕
+            Γ£ò
           </button>
         </div>
 
         {holiday && (
           <div className="mb-3 px-3 py-2 rounded-lg bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 text-sm font-medium">
-            🎉 {holiday.name}
+            ≡ƒÄë {holiday.name}
           </div>
         )}
 
@@ -112,7 +112,7 @@ function DayTodosModal({
   );
 }
 
-// ── CalendarCell ──────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ CalendarCell ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const MAX_VISIBLE = 3;
 
@@ -187,11 +187,11 @@ function CalendarCell({
   );
 }
 
-// ── Day-of-week header ────────────────────────────────────────────────────────
+// ΓöÇΓöÇ Day-of-week header ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-// ── Calendar content (needs Suspense for useSearchParams) ─────────────────────
+// ΓöÇΓöÇ Calendar content (needs Suspense for useSearchParams) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 function CalendarContent() {
   const router       = useRouter();
@@ -242,14 +242,14 @@ function CalendarContent() {
     <div className="min-h-screen bg-white dark:bg-gray-900 p-4">
       <div className="max-w-6xl mx-auto">
 
-        {/* ── Navigation header ── */}
+        {/* ΓöÇΓöÇ Navigation header ΓöÇΓöÇ */}
         <div className="flex items-center justify-between mb-5 gap-4 flex-wrap">
           <div className="flex items-center gap-3">
             <a
               href="/"
               className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
             >
-              ← List
+              ΓåÉ List
             </a>
             <h1
               data-testid="calendar-month-label"
@@ -268,7 +268,7 @@ function CalendarContent() {
                          text-gray-700 dark:text-gray-300 text-sm font-medium
                          hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
-              ◀
+              ΓùÇ
             </button>
             <button
               data-testid="today-btn"
@@ -287,15 +287,15 @@ function CalendarContent() {
                          text-gray-700 dark:text-gray-300 text-sm font-medium
                          hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
-              ▶
+              Γû╢
             </button>
           </div>
         </div>
 
-        {/* ── Calendar grid ── */}
+        {/* ΓöÇΓöÇ Calendar grid ΓöÇΓöÇ */}
         {loading ? (
           <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
-            Loading calendar…
+            Loading calendarΓÇª
           </div>
         ) : (
           <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden shadow-sm">
@@ -311,7 +311,7 @@ function CalendarContent() {
               ))}
             </div>
 
-            {/* 6 × 7 cells */}
+            {/* 6 ├ù 7 cells */}
             <div className="grid grid-cols-7">
               {grid.map(day => (
                 <CalendarCell
@@ -343,7 +343,7 @@ function CalendarContent() {
         </div>
       </div>
 
-      {/* ── Day modal ── */}
+      {/* ΓöÇΓöÇ Day modal ΓöÇΓöÇ */}
       {selectedDate && (
         <DayTodosModal
           date={selectedDate}
@@ -356,14 +356,14 @@ function CalendarContent() {
   );
 }
 
-// ── Page export ───────────────────────────────────────────────────────────────
+// ΓöÇΓöÇ Page export ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 export default function CalendarPage() {
   return (
     <Suspense
       fallback={
         <div className="min-h-screen flex items-center justify-center text-gray-400 text-sm">
-          Loading…
+          LoadingΓÇª
         </div>
       }
     >

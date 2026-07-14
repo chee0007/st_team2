@@ -1,89 +1,132 @@
-import { type NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
-import { todoDB } from '@/lib/db';
-import type { Priority, RecurrencePattern } from '@/lib/db';
+﻿import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getSession } from "@/lib/auth";
+import { type Priority, todoDB } from "@/lib/db";
+import { isAtLeastOneMinuteInFuture, parseISODate } from "@/lib/timezone";
 
-// ── GET /api/todos/[id] ───────────────────────────────────────────────────────
+const updateTodoSchema = z.object({
+  title: z.string().trim().min(1).optional(),
+  completed: z.boolean().optional(),
+  due_date: z.string().datetime().nullable().optional(),
+  priority: z.enum(["high", "medium", "low"]).optional(),
+  is_recurring: z.boolean().optional(),
+  recurrence_pattern: z.enum(["daily", "weekly", "monthly", "yearly"]).nullable().optional(),
+  reminder_minutes: z.number().int().nullable().optional(),
+  last_notification_sent: z.string().nullable().optional(),
+});
+
+function parseId(id: string): number | null {
+  const value = Number(id);
+  if (!Number.isInteger(value) || value <= 0) {
+    return null;
+  }
+  return value;
+}
 
 export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
   const { id } = await params;
-  const todo = todoDB.findById(Number(id), session.userId);
-  if (!todo) return NextResponse.json({ error: 'Todo not found' }, { status: 404 });
+  const todoId = parseId(id);
+  if (!todoId) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  }
 
-  return NextResponse.json({ todo });
+  const todo = todoDB.findById(todoId, session.userId);
+  if (!todo) {
+    return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true, data: todo });
 }
-
-// ── PUT /api/todos/[id] ───────────────────────────────────────────────────────
 
 export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
   const { id } = await params;
-  const body = await request.json() as Record<string, unknown>;
-
-  const existing = todoDB.findById(Number(id), session.userId);
-  if (!existing) return NextResponse.json({ error: 'Todo not found' }, { status: 404 });
-
-  // ── Validate known fields ──────────────────────────────────────────────────
-  const data: Parameters<typeof todoDB.update>[2] = {};
-
-  if ('title' in body) {
-    const t = String(body.title ?? '').trim();
-    if (!t) return NextResponse.json({ error: 'Title cannot be empty' }, { status: 400 });
-    data.title = t;
-  }
-  if ('completed' in body)          data.completed          = Boolean(body.completed);
-  if ('priority' in body)           data.priority           = body.priority as Priority;
-  if ('is_recurring' in body)       data.is_recurring       = Boolean(body.is_recurring);
-  if ('recurrence_pattern' in body) data.recurrence_pattern = (body.recurrence_pattern ?? null) as RecurrencePattern | null;
-
-  // due_date and reminder_minutes: changing either resets last_notification_sent
-  // so the reminder fires again for the new window.
-  const changingDueOrReminder =
-    ('due_date' in body || 'reminder_minutes' in body) &&
-    !('last_notification_sent' in body);
-
-  if ('due_date' in body) {
-    data.due_date = (body.due_date as string | null) ?? null;
-  }
-  if ('reminder_minutes' in body) {
-    data.reminder_minutes = body.reminder_minutes != null ? Number(body.reminder_minutes) : null;
-  }
-  if ('last_notification_sent' in body) {
-    data.last_notification_sent = (body.last_notification_sent as string | null) ?? null;
+  const todoId = parseId(id);
+  if (!todoId) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
   }
 
-  if (changingDueOrReminder) {
-    data.last_notification_sent = null;
-  }
+  try {
+    const input = updateTodoSchema.parse(await request.json());
 
-  const updated = todoDB.update(Number(id), session.userId, data);
-  return NextResponse.json({ todo: updated });
+    if (input.due_date) {
+      const parsed = parseISODate(input.due_date);
+      if (Number.isNaN(parsed.getTime())) {
+        return NextResponse.json({ error: "Invalid due date" }, { status: 400 });
+      }
+      if (!isAtLeastOneMinuteInFuture(parsed)) {
+        return NextResponse.json(
+          { error: "Due date must be at least 1 minute in the future" },
+          { status: 400 }
+        );
+      }
+    }
+
+    const todo = todoDB.update(todoId, session.userId, {
+      title: input.title?.trim(),
+      completed: input.completed,
+      due_date: input.due_date,
+      priority: input.priority as Priority | undefined,
+      is_recurring: input.is_recurring,
+      recurrence_pattern: input.recurrence_pattern,
+      reminder_minutes: input.reminder_minutes,
+      // Re-arm reminder when due_date or reminder_minutes changes (PRP-04).
+      // If last_notification_sent is explicitly set in the payload, use that
+      // value as-is (the notification hook stamps it after firing).
+      last_notification_sent:
+        input.last_notification_sent !== undefined
+          ? input.last_notification_sent
+          : (input.due_date !== undefined || input.reminder_minutes !== undefined)
+            ? null
+            : undefined,
+    });
+
+    if (!todo) {
+      return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, data: todo });
+  } catch {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
 }
 
-// ── DELETE /api/todos/[id] ────────────────────────────────────────────────────
-
 export async function DELETE(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
+): Promise<NextResponse> {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
   const { id } = await params;
-  const existing = todoDB.findById(Number(id), session.userId);
-  if (!existing) return NextResponse.json({ error: 'Todo not found' }, { status: 404 });
+  const todoId = parseId(id);
+  if (!todoId) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  }
 
-  todoDB.delete(Number(id), session.userId);
-  return new NextResponse(null, { status: 204 });
+  const existing = todoDB.findById(todoId, session.userId);
+  if (!existing) {
+    return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+  }
+
+  todoDB.delete(todoId, session.userId);
+
+  return NextResponse.json({ success: true });
 }

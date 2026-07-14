@@ -36,6 +36,21 @@ export function parseSingaporeDate(isoString: string): Date {
 }
 
 /**
+ * Backward-compatible alias used by API routes.
+ */
+export function parseISODate(isoString: string): Date {
+  return parseSingaporeDate(isoString);
+}
+
+/**
+ * Returns true if a date is at least one minute in the future.
+ */
+export function isAtLeastOneMinuteInFuture(date: Date): boolean {
+  const diffMs = date.getTime() - getSingaporeNow().getTime();
+  return diffMs >= 60_000;
+}
+
+/**
  * Returns the Singapore date portion only (YYYY-MM-DD).
  */
 export function getSingaporeDateString(date: Date = new Date()): string {

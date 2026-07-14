@@ -1,43 +1,23 @@
-/**
- * Server-side in-memory store for pending WebAuthn challenges.
- * Keyed by a string (e.g. "reg:<username>" or "auth:<username>").
- * Each entry auto-expires after 5 minutes.
- *
- * Note: module-level state is sufficient for single-process deployments
- * (dev + Railway). Multi-instance production would need Redis.
- */
+﻿// Shared in-memory challenge store for WebAuthn flows.
+// Works for single-process deployments; swap for Redis in multi-instance setups.
 
-interface Entry {
-  challenge: string;
-  expiresAt: number;
+declare global {
+  // eslint-disable-next-line no-var
+  var __webauthnChallenges: Map<string, string> | undefined;
 }
 
-// Survive Next.js hot reload in development via globalThis
-const g = globalThis as typeof globalThis & { _challenges?: Map<string, Entry> };
-
-function store(): Map<string, Entry> {
-  if (!g._challenges) g._challenges = new Map();
-  return g._challenges;
+if (!global.__webauthnChallenges) {
+  global.__webauthnChallenges = new Map<string, string>();
 }
-
-const TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export const challengeStore = {
-  set(key: string, challenge: string): void {
-    store().set(key, { challenge, expiresAt: Date.now() + TTL_MS });
+  set(key: string, challenge: string) {
+    global.__webauthnChallenges!.set(key, challenge);
   },
-
   get(key: string): string | undefined {
-    const entry = store().get(key);
-    if (!entry) return undefined;
-    if (Date.now() > entry.expiresAt) {
-      store().delete(key);
-      return undefined;
-    }
-    return entry.challenge;
+    return global.__webauthnChallenges!.get(key);
   },
-
-  delete(key: string): void {
-    store().delete(key);
+  delete(key: string) {
+    global.__webauthnChallenges!.delete(key);
   },
 };

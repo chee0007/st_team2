@@ -1,6 +1,6 @@
-import { type Page, type CDPSession } from '@playwright/test';
+﻿import { type Page, type CDPSession } from '@playwright/test';
 
-// --- WebAuthn virtual authenticator ------------------------------------------
+// ΓöÇΓöÇΓöÇ WebAuthn virtual authenticator ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 export interface VirtualAuthenticator {
   client: CDPSession;
@@ -26,16 +26,19 @@ export async function setupVirtualAuthenticator(page: Page): Promise<VirtualAuth
   return { client, authenticatorId };
 }
 
-export async function teardownVirtualAuthenticator(va: VirtualAuthenticator): Promise<void> {
+export async function teardownVirtualAuthenticator(va?: VirtualAuthenticator): Promise<void> {
+  if (!va) return;
+
   await va.client.send('WebAuthn.removeVirtualAuthenticator', {
     authenticatorId: va.authenticatorId,
   });
 }
 
-// --- Auth helpers -------------------------------------------------------------
+// ΓöÇΓöÇΓöÇ Auth helpers ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 /**
- * Registers a new user. Assumes a virtual authenticator is already attached.
+ * Registers a new user with the given username.
+ * Assumes a virtual authenticator is already attached to the page.
  */
 export async function register(page: Page, username: string): Promise<void> {
   await page.goto('/login');
@@ -45,7 +48,8 @@ export async function register(page: Page, username: string): Promise<void> {
 }
 
 /**
- * Logs in an existing user. Assumes a virtual authenticator is already attached.
+ * Logs in an existing user.
+ * Assumes a virtual authenticator is already attached to the page.
  */
 export async function login(page: Page, username: string): Promise<void> {
   await page.goto('/login');
@@ -54,70 +58,46 @@ export async function login(page: Page, username: string): Promise<void> {
   await page.waitForURL('/');
 }
 
-// --- Todo helpers (API-based for test data seeding) ---------------------------
+// ΓöÇΓöÇΓöÇ Todo helpers (stub ΓÇö implemented by Person 2) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
 export async function createTodo(
   page: Page,
-  title: string,
-  options?: {
-    dueDate?: string;
-    priority?: 'high' | 'medium' | 'low';
-    isRecurring?: boolean;
-    recurrencePattern?: 'daily' | 'weekly' | 'monthly' | 'yearly';
-    reminderMinutes?: number;
-  },
-): Promise<{ todo: { id: number; [key: string]: unknown } }> {
-  const res = await page.request.post('/api/todos', {
-    data: {
-      title,
-      due_date: options?.dueDate ?? null,
-      priority: options?.priority ?? 'medium',
-      is_recurring: options?.isRecurring ?? false,
-      recurrence_pattern: options?.recurrencePattern ?? null,
-      reminder_minutes: options?.reminderMinutes ?? null,
-    },
-  });
-  return res.json();
+  options: { title: string; priority?: string },
+): Promise<void> {
+  await page.fill('input[placeholder="What do you need to do?"]', options.title);
+
+  if (options.priority) {
+    await page.selectOption('section:has-text("Add Todo") select', options.priority);
+  }
+
+  await page.click('button:has-text("Add")');
 }
 
 export async function addSubtask(
   page: Page,
-  todoId: number,
-  title: string,
-): Promise<unknown> {
-  const res = await page.request.post(`/api/todos/${todoId}/subtasks`, {
-    data: { title },
-  });
-  return res.json();
+  todoTitle: string,
+  subtaskTitle: string,
+): Promise<void> {
+  // TODO: Implement when Person 3 builds subtasks UI
+  void page;
+  void todoTitle;
+  void subtaskTitle;
 }
 
 export async function createTag(
   page: Page,
-  name: string,
-  color = '#3B82F6',
-): Promise<unknown> {
-  const res = await page.request.post('/api/tags', {
-    data: { name, color },
-  });
-  return res.json();
+  options: { name: string; color?: string },
+): Promise<void> {
+  // TODO: Implement when Person 4 builds tags UI
+  void page;
+  void options;
 }
 
 export async function createTemplate(
   page: Page,
-  options: {
-    name: string;
-    titleTemplate: string;
-    priority?: 'high' | 'medium' | 'low';
-    dueDateOffsetMinutes?: number;
-  },
-): Promise<unknown> {
-  const res = await page.request.post('/api/templates', {
-    data: {
-      name: options.name,
-      title_template: options.titleTemplate,
-      priority: options.priority ?? 'medium',
-      due_date_offset_minutes: options.dueDateOffsetMinutes ?? null,
-    },
-  });
-  return res.json();
+  options: { name: string; titleTemplate: string },
+): Promise<void> {
+  // TODO: Implement when Person 3 builds templates UI
+  void page;
+  void options;
 }
