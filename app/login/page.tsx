@@ -1,84 +1,125 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { startRegistration, startAuthentication } from '@simplewebauthn/browser';
 import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
   const [username, setUsername] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
+  // Redirect if already authenticated
+  useEffect(() => {
+    fetch('/api/auth/me').then((res) => {
+      if (res.ok) router.replace('/');
+    });
+  }, [router]);
+
   async function handleRegister() {
-    const name = username.trim();
-    if (!name) { setError('Username is required'); return; }
+    const trimmed = username.trim();
+    if (!trimmed) { setError('Username is required'); return; }
+
+    setError(null);
     setLoading(true);
-    setError('');
+
     try {
-      const optRes = await fetch('/api/auth/register-options', {
+      const optionsRes = await fetch('/api/auth/register-options', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: name }),
+        body: JSON.stringify({ username: trimmed }),
       });
-      if (!optRes.ok) {
-        const d = await optRes.json();
-        setError(d.error ?? 'Failed to start registration');
+
+      const optionsData = await optionsRes.json();
+      if (!optionsRes.ok) {
+        setError(optionsData.error ?? 'Registration failed');
         return;
       }
-      const options = await optRes.json();
-      const attResp = await startRegistration({ optionsJSON: options });
 
-      const verRes = await fetch('/api/auth/register-verify', {
+      let attestation;
+      try {
+        attestation = await startRegistration(optionsData);
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'NotAllowedError') {
+          setError('Registration cancelled. Try again when ready.');
+        } else if (err instanceof Error) {
+          setError(err.message.includes('supported')
+            ? 'Your browser or device does not support passkeys.'
+            : 'Registration failed. Please try again.');
+        } else {
+          setError('Registration failed. Please try again.');
+        }
+        return;
+      }
+
+      const verifyRes = await fetch('/api/auth/register-verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: name, response: attResp }),
+        body: JSON.stringify({ username: trimmed, response: attestation }),
       });
-      const verData = await verRes.json();
-      if (verData.verified) {
-        router.push('/');
-      } else {
-        setError(verData.error ?? 'Registration failed');
+
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) {
+        setError(verifyData.error ?? 'Verification failed');
+        return;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Registration failed');
+
+      router.push('/');
     } finally {
       setLoading(false);
     }
   }
 
   async function handleLogin() {
-    const name = username.trim();
-    if (!name) { setError('Username is required'); return; }
+    const trimmed = username.trim();
+    if (!trimmed) { setError('Username is required'); return; }
+
+    setError(null);
     setLoading(true);
-    setError('');
+
     try {
-      const optRes = await fetch('/api/auth/login-options', {
+      const optionsRes = await fetch('/api/auth/login-options', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: name }),
+        body: JSON.stringify({ username: trimmed }),
       });
-      if (!optRes.ok) {
-        const d = await optRes.json();
-        setError(d.error ?? 'Failed to start login');
+
+      const optionsData = await optionsRes.json();
+      if (!optionsRes.ok) {
+        setError(optionsData.error ?? 'Login failed');
         return;
       }
-      const options = await optRes.json();
-      const assResp = await startAuthentication({ optionsJSON: options });
 
-      const verRes = await fetch('/api/auth/login-verify', {
+      let assertion;
+      try {
+        assertion = await startAuthentication(optionsData);
+      } catch (err: unknown) {
+        if (err instanceof Error && err.name === 'NotAllowedError') {
+          setError('Login cancelled. Try again when ready.');
+        } else if (err instanceof Error) {
+          setError(err.message.includes('supported')
+            ? 'Your browser or device does not support passkeys.'
+            : 'Login failed. Please try again.');
+        } else {
+          setError('Login failed. Please try again.');
+        }
+        return;
+      }
+
+      const verifyRes = await fetch('/api/auth/login-verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: name, response: assResp }),
+        body: JSON.stringify({ username: trimmed, response: assertion }),
       });
-      const verData = await verRes.json();
-      if (verData.verified) {
-        router.push('/');
-      } else {
-        setError(verData.error ?? 'Login failed');
+
+      const verifyData = await verifyRes.json();
+      if (!verifyRes.ok) {
+        setError(verifyData.error ?? 'Login failed');
+        return;
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed');
+
+      router.push('/');
     } finally {
       setLoading(false);
     }
@@ -86,52 +127,59 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 max-w-sm w-full mx-4">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 text-center">
-          Todo App
-        </h1>
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-              Username
-            </label>
-            <input
-              data-testid="username-input"
-              type="text"
-              value={username}
-              onChange={e => setUsername(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleLogin()}
-              placeholder="Enter username"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
-                         text-gray-900 dark:text-white bg-white dark:bg-gray-700
-                         focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
+      <div className="w-full max-w-sm bg-white dark:bg-gray-800 rounded-xl shadow-md p-8 space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-center">Todo App</h1>
+          <p className="text-center text-sm text-gray-500 mt-1">Sign in with your passkey</p>
+        </div>
 
-          {error && (
-            <p className="text-red-500 text-sm" role="alert">{error}</p>
-          )}
-
-          <button
-            data-testid="register-button"
-            onClick={handleRegister}
+        <div className="space-y-3">
+          <label htmlFor="username" className="block text-sm font-medium">
+            Username
+          </label>
+          <input
+            id="username"
+            type="text"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
+            placeholder="your-username"
             disabled={loading}
-            className="w-full py-2 px-4 bg-green-500 text-white rounded-lg font-medium
-                       hover:bg-green-600 disabled:opacity-50 transition-colors"
-          >
-            {loading ? 'Working…' : 'Register (New User)'}
-          </button>
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg
+                       bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100
+                       focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          />
+        </div>
 
+        {error && (
+          <p role="alert" className="text-sm text-red-600 dark:text-red-400 text-center">
+            {error}
+          </p>
+        )}
+
+        <div className="flex gap-3">
           <button
-            data-testid="login-button"
             onClick={handleLogin}
             disabled={loading}
-            className="w-full py-2 px-4 bg-blue-500 text-white rounded-lg font-medium
-                       hover:bg-blue-600 disabled:opacity-50 transition-colors"
+            className="flex-1 py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium
+                       rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Working…' : 'Login (Existing User)'}
+            {loading ? 'Loading…' : 'Login'}
+          </button>
+          <button
+            onClick={handleRegister}
+            disabled={loading}
+            className="flex-1 py-2 px-4 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300
+                       dark:hover:bg-gray-600 font-medium rounded-lg transition-colors
+                       disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Loading…' : 'Register'}
           </button>
         </div>
+
+        <p className="text-xs text-center text-gray-400">
+          Uses passkeys — no passwords needed.
+        </p>
       </div>
     </div>
   );

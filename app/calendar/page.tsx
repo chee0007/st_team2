@@ -2,8 +2,8 @@
 
 import { Suspense, useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { generateCalendarGrid, prevMonth, nextMonth } from '@/lib/calendar';
-import type { CalendarDay, Holiday, Todo } from '@/lib/db';
+import { generateCalendarGrid, prevMonth, nextMonth, type CalendarDay } from '@/lib/calendar';
+import type { Holiday, Todo } from '@/lib/db';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 

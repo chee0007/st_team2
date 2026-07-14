@@ -1,8 +1,7 @@
 import type { NextConfig } from 'next';
 
-const config: NextConfig = {
-  poweredByHeader: false,
+const nextConfig: NextConfig = {
   serverExternalPackages: ['better-sqlite3'],
 };
 
-export default config;
+export default nextConfig;

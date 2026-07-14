@@ -1,24 +1,22 @@
-# Dependencies
 node_modules/
 
-# Next.js build output
+# Next.js
 .next/
 out/
 
-# Database file (contains user data — never commit)
-todos.db
-todos.db-shm
-todos.db-wal
+# Build artifacts
+tsconfig.tsbuildinfo
 
-# Local environment variables (contains secrets — never commit)
+# Database
+todos.db
+todos.db-journal
+todos.db-wal
+todos.db-shm
+
+# Environment variables (contain secrets)
 .env.local
 .env*.local
 
-# Test results
+# Playwright
 playwright-report/
 test-results/
-
-# Misc
-.DS_Store
-*.pem
-npm-debug.log*

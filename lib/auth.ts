@@ -1,53 +1,81 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
-import type { Session } from './db';
+import type { User, Session } from '@/lib/db';
+
+// ─── Constants ────────────────────────────────────────────────────────────────
 
 const COOKIE_NAME = 'session';
-const EXPIRY = '7d';
-const MAX_AGE = 60 * 60 * 24 * 7; // 7 days in seconds
+const EXPIRY_SECONDS = 7 * 24 * 60 * 60; // 7 days
 
-function getSecret(): Uint8Array {
-  const raw =
-    process.env.JWT_SECRET ??
-    (process.env.NODE_ENV !== 'production'
-      ? 'dev-secret-do-not-use-in-production-min-32-chars'
-      : null);
-  if (!raw) throw new Error('JWT_SECRET environment variable is not set');
-  return new TextEncoder().encode(raw);
-}
+export const JWT_SECRET = new TextEncoder().encode(
+  process.env.JWT_SECRET ?? 'dev-secret-must-be-at-least-32-characters-long',
+);
 
-export async function createSession(session: Session): Promise<void> {
-  const token = await new SignJWT({ userId: session.userId, username: session.username })
+// ─── Challenge store (in-memory, single-use, 5-minute TTL) ───────────────────
+
+const _challenges = new Map<string, { challenge: string; expiresAt: number }>();
+
+export const challengeStore = {
+  save(key: string, challenge: string): void {
+    _challenges.set(key, { challenge, expiresAt: Date.now() + 5 * 60 * 1000 });
+  },
+
+  /** Consumes (single-use) and returns the challenge, or null if missing/expired. */
+  consume(key: string): string | null {
+    const entry = _challenges.get(key);
+    _challenges.delete(key);
+    if (!entry || Date.now() > entry.expiresAt) return null;
+    return entry.challenge;
+  },
+};
+
+// ─── Session helpers ──────────────────────────────────────────────────────────
+
+/**
+ * Signs a JWT and stores it as an HTTP-only session cookie.
+ * Call this from route handlers after successful auth verification.
+ */
+export async function createSession(user: User): Promise<void> {
+  const token = await new SignJWT({ userId: user.id, username: user.username })
     .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime(EXPIRY)
-    .sign(getSecret());
+    .setIssuedAt()
+    .setExpirationTime('7d')
+    .sign(JWT_SECRET);
 
-  const jar = await cookies();
-  jar.set(COOKIE_NAME, token, {
+  const cookieStore = await cookies();
+  cookieStore.set(COOKIE_NAME, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: MAX_AGE,
+    maxAge: EXPIRY_SECONDS,
     path: '/',
   });
 }
 
+/**
+ * Reads the session cookie and verifies the JWT.
+ * Returns the decoded session or null if missing/invalid/expired.
+ * Fails closed — never throws.
+ */
 export async function getSession(): Promise<Session | null> {
   try {
-    const jar = await cookies();
-    const token = jar.get(COOKIE_NAME)?.value;
+    const cookieStore = await cookies();
+    const token = cookieStore.get(COOKIE_NAME)?.value;
     if (!token) return null;
-    const { payload } = await jwtVerify(token, getSecret());
-    if (typeof payload.userId !== 'number' || typeof payload.username !== 'string') {
-      return null;
-    }
+
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    if (typeof payload.userId !== 'number' || typeof payload.username !== 'string') return null;
+
     return { userId: payload.userId, username: payload.username };
   } catch {
     return null;
   }
 }
 
+/**
+ * Clears the session cookie immediately.
+ */
 export async function deleteSession(): Promise<void> {
-  const jar = await cookies();
-  jar.delete(COOKIE_NAME);
+  const cookieStore = await cookies();
+  cookieStore.delete(COOKIE_NAME);
 }

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { register, createTodo } from './helpers';
+import { setupVirtualAuthenticator, register, createTodo } from './helpers';
 
 // Unique prefix per run to avoid cross-test user collisions
 const UID = `cal_${Date.now()}`;
@@ -22,14 +22,15 @@ function currentSgMonth(): { year: number; month: number } {
 // ── Setup ─────────────────────────────────────────────────────────────────────
 
 test.describe('Calendar View — PRP 10', () => {
-  test.beforeEach(async ({ page, context }) => {
-    await register(page, context, `${UID}_${test.info().workerIndex}`);
+  test.beforeEach(async ({ page }) => {
+    await setupVirtualAuthenticator(page);
+    await register(page, `${UID}_${test.info().workerIndex}`);
   });
 
   // ── 1. Route protection ────────────────────────────────────────────────────
 
-  test('unauthenticated access to /calendar redirects to /login', async ({ page, context }) => {
-    await context.clearCookies();
+  test('unauthenticated access to /calendar redirects to /login', async ({ page }) => {
+    await page.context().clearCookies();
     await page.goto('/calendar');
     await expect(page).toHaveURL('/login');
   });

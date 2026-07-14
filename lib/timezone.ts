@@ -1,20 +1,57 @@
+/**
+ * Singapore timezone utilities.
+ * All date/time operations in this app MUST use these helpers — never `new Date()` directly.
+ */
+
 const TZ = 'Asia/Singapore';
 
 /**
- * Returns a Date representing the current moment.
- * JS Date is always UTC internally; use formatSingaporeDate() to extract
- * Singapore-local date/time components — never new Date() for comparisons.
+ * Returns a Date object representing the current moment, with correct
+ * Singapore local-time semantics when formatted.
  */
 export function getSingaporeNow(): Date {
   return new Date();
 }
 
 /**
- * Formats a Date in Singapore timezone using a simple template.
- * Supported tokens: YYYY MM DD HH mm ss
+ * Returns the current Singapore date/time as an ISO 8601 string
+ * in local Singapore time (e.g. "2025-06-15T14:30:00+08:00").
  */
-export function formatSingaporeDate(date: Date, format: string): string {
-  const f = new Intl.DateTimeFormat('en-CA', {
+export function getSingaporeISOString(): string {
+  return formatToSingapore(new Date());
+}
+
+/**
+ * Formats a Date as an ISO 8601 string in Singapore local time.
+ */
+export function formatSingaporeDate(date: Date): string {
+  return formatToSingapore(date);
+}
+
+/**
+ * Parses a Singapore local-time ISO string into a JS Date (UTC internally).
+ */
+export function parseSingaporeDate(isoString: string): Date {
+  return new Date(isoString);
+}
+
+/**
+ * Returns the Singapore date portion only (YYYY-MM-DD).
+ */
+export function getSingaporeDateString(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+// ─── Internal ─────────────────────────────────────────────────────────────────
+
+function formatToSingapore(date: Date): string {
+  // Build a Singapore-offset ISO string: YYYY-MM-DDTHH:mm:ss+08:00
+  const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: TZ,
     year: 'numeric',
     month: '2-digit',
@@ -23,22 +60,16 @@ export function formatSingaporeDate(date: Date, format: string): string {
     minute: '2-digit',
     second: '2-digit',
     hour12: false,
-  });
-  const parts = Object.fromEntries(
-    f.formatToParts(date).map(({ type, value }) => [type, value])
-  );
-  // Intl can return '24' for midnight; normalise to '00'
-  const hour = parts.hour === '24' ? '00' : parts.hour;
-  return format
-    .replace('YYYY', parts.year)
-    .replace('MM', parts.month)
-    .replace('DD', parts.day)
-    .replace('HH', hour)
-    .replace('mm', parts.minute)
-    .replace('ss', parts.second);
-}
+  }).formatToParts(date);
 
-/** Returns today's date string in Singapore timezone as YYYY-MM-DD. */
-export function getSingaporeDateString(): string {
-  return formatSingaporeDate(getSingaporeNow(), 'YYYY-MM-DD');
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
+
+  const year = get('year');
+  const month = get('month');
+  const day = get('day');
+  const hour = get('hour') === '24' ? '00' : get('hour');
+  const minute = get('minute');
+  const second = get('second');
+
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}+08:00`;
 }

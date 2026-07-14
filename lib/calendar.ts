@@ -1,5 +1,12 @@
-import { getSingaporeNow, formatSingaporeDate } from './timezone';
-import type { CalendarDay } from './db';
+import { getSingaporeNow, getSingaporeDateString } from './timezone';
+
+export interface CalendarDay {
+  date: string;           // YYYY-MM-DD
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  isPast: boolean;
+  isWeekend: boolean;
+}
 
 /**
  * Generates a fixed 6×7 (42-cell) calendar grid for the given year/month.
@@ -12,14 +19,14 @@ export function generateCalendarGrid(year: number, month: number): CalendarDay[]
   const startWeekday = firstOfMonth.getUTCDay(); // 0 = Sunday
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
 
-  const today = formatSingaporeDate(getSingaporeNow(), 'YYYY-MM-DD');
+  const today = getSingaporeDateString(getSingaporeNow());
   const cells: CalendarDay[] = [];
   const TOTAL = 42; // 6 rows × 7 cols — fixed regardless of month length
 
   for (let i = 0; i < TOTAL; i++) {
     const dayOffset = i - startWeekday + 1;
     const cellDate = new Date(Date.UTC(year, month - 1, dayOffset));
-    const dateStr = formatSingaporeDate(cellDate, 'YYYY-MM-DD');
+    const dateStr = getSingaporeDateString(cellDate);
     const weekday = cellDate.getUTCDay();
 
     cells.push({

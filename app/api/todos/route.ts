@@ -7,7 +7,7 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
 
-  const todos = todoDB.findByUserId(session.userId);
+  const todos = todoDB.findAllByUser(session.userId);
   return NextResponse.json({ todos });
 }
 

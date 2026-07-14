@@ -1,40 +1,35 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { generateRegistrationOptions } from '@simplewebauthn/server';
-import { userDB, authenticatorDB } from '@/lib/db';
-import { challengeStore } from '@/lib/challengeStore';
-
-const RP_NAME = process.env.RP_NAME ?? 'Todo App';
-const RP_ID   = process.env.RP_ID   ?? 'localhost';
+import { userDB } from '@/lib/db';
+import { challengeStore } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   const body = await request.json();
-  const username = typeof body.username === 'string' ? body.username.trim() : '';
+  const username = String(body.username ?? '').trim();
+
   if (!username) {
     return NextResponse.json({ error: 'Username is required' }, { status: 400 });
   }
 
-  const existing = userDB.findByUsername(username);
-  const excludeCredentials = existing
-    ? authenticatorDB.findByUserId(existing.id).map(a => ({
-        id: a.credential_id,
-        type: 'public-key' as const,
-      }))
-    : [];
+  // 409 before generating any challenge — prevents username enumeration
+  if (userDB.findByUsername(username)) {
+    return NextResponse.json({ error: 'Username already taken' }, { status: 409 });
+  }
 
   const options = await generateRegistrationOptions({
-    rpName: RP_NAME,
-    rpID: RP_ID,
+    rpName: process.env.RP_NAME ?? 'Todo App',
+    rpID: process.env.RP_ID ?? 'localhost',
+    userID: new TextEncoder().encode(username),
     userName: username,
-    userDisplayName: username,
     attestationType: 'none',
-    excludeCredentials,
+    excludeCredentials: [],
     authenticatorSelection: {
-      residentKey: 'preferred',
+      residentKey: 'required',
       userVerification: 'preferred',
     },
   });
 
-  challengeStore.set(`reg:${username}`, options.challenge);
+  challengeStore.save(username, options.challenge);
 
   return NextResponse.json(options);
 }

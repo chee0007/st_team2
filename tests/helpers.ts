@@ -1,10 +1,19 @@
-import { type BrowserContext, type Page } from '@playwright/test';
+import { type Page, type CDPSession } from '@playwright/test';
 
-// ── Virtual WebAuthn authenticator ────────────────────────────────────────────
+// --- WebAuthn virtual authenticator ------------------------------------------
 
-export async function setupVirtualAuthenticator(context: BrowserContext, page: Page) {
-  const client = await context.newCDPSession(page);
-  await client.send('WebAuthn.enable', { enableUI: true });
+export interface VirtualAuthenticator {
+  client: CDPSession;
+  authenticatorId: string;
+}
+
+/**
+ * Attaches a virtual WebAuthn authenticator to the page via CDP.
+ * Call this at the start of each test that performs registration or login.
+ */
+export async function setupVirtualAuthenticator(page: Page): Promise<VirtualAuthenticator> {
+  const client = await page.context().newCDPSession(page);
+  await client.send('WebAuthn.enable');
   const { authenticatorId } = await client.send('WebAuthn.addVirtualAuthenticator', {
     options: {
       protocol: 'ctap2',
@@ -17,25 +26,35 @@ export async function setupVirtualAuthenticator(context: BrowserContext, page: P
   return { client, authenticatorId };
 }
 
-// ── Auth helpers ──────────────────────────────────────────────────────────────
+export async function teardownVirtualAuthenticator(va: VirtualAuthenticator): Promise<void> {
+  await va.client.send('WebAuthn.removeVirtualAuthenticator', {
+    authenticatorId: va.authenticatorId,
+  });
+}
 
-export async function register(page: Page, context: BrowserContext, username: string) {
-  await setupVirtualAuthenticator(context, page);
+// --- Auth helpers -------------------------------------------------------------
+
+/**
+ * Registers a new user. Assumes a virtual authenticator is already attached.
+ */
+export async function register(page: Page, username: string): Promise<void> {
   await page.goto('/login');
-  await page.fill('[data-testid="username-input"]', username);
-  await page.click('[data-testid="register-button"]');
+  await page.fill('#username', username);
+  await page.click('button:has-text("Register")');
   await page.waitForURL('/');
 }
 
-export async function login(page: Page, context: BrowserContext, username: string) {
-  await setupVirtualAuthenticator(context, page);
+/**
+ * Logs in an existing user. Assumes a virtual authenticator is already attached.
+ */
+export async function login(page: Page, username: string): Promise<void> {
   await page.goto('/login');
-  await page.fill('[data-testid="username-input"]', username);
-  await page.click('[data-testid="login-button"]');
+  await page.fill('#username', username);
+  await page.click('button:has-text("Login")');
   await page.waitForURL('/');
 }
 
-// ── Data helpers (API-level) ──────────────────────────────────────────────────
+// --- Todo helpers (API-based for test data seeding) ---------------------------
 
 export async function createTodo(
   page: Page,
@@ -44,10 +63,10 @@ export async function createTodo(
     dueDate?: string;
     priority?: 'high' | 'medium' | 'low';
     isRecurring?: boolean;
-    recurrencePattern?: string;
+    recurrencePattern?: 'daily' | 'weekly' | 'monthly' | 'yearly';
     reminderMinutes?: number;
-  }
-) {
+  },
+): Promise<{ todo: { id: number; [key: string]: unknown } }> {
   const res = await page.request.post('/api/todos', {
     data: {
       title,
@@ -58,17 +77,25 @@ export async function createTodo(
       reminder_minutes: options?.reminderMinutes ?? null,
     },
   });
-  return res.json() as Promise<{ todo: { id: number; [key: string]: unknown } }>;
+  return res.json();
 }
 
-export async function addSubtask(page: Page, todoId: number, title: string) {
+export async function addSubtask(
+  page: Page,
+  todoId: number,
+  title: string,
+): Promise<unknown> {
   const res = await page.request.post(`/api/todos/${todoId}/subtasks`, {
     data: { title },
   });
   return res.json();
 }
 
-export async function createTag(page: Page, name: string, color = '#3B82F6') {
+export async function createTag(
+  page: Page,
+  name: string,
+  color = '#3B82F6',
+): Promise<unknown> {
   const res = await page.request.post('/api/tags', {
     data: { name, color },
   });
@@ -77,19 +104,19 @@ export async function createTag(page: Page, name: string, color = '#3B82F6') {
 
 export async function createTemplate(
   page: Page,
-  data: {
+  options: {
     name: string;
     titleTemplate: string;
     priority?: 'high' | 'medium' | 'low';
     dueDateOffsetMinutes?: number;
-  }
-) {
+  },
+): Promise<unknown> {
   const res = await page.request.post('/api/templates', {
     data: {
-      name: data.name,
-      title_template: data.titleTemplate,
-      priority: data.priority ?? 'medium',
-      due_date_offset_minutes: data.dueDateOffsetMinutes ?? null,
+      name: options.name,
+      title_template: options.titleTemplate,
+      priority: options.priority ?? 'medium',
+      due_date_offset_minutes: options.dueDateOffsetMinutes ?? null,
     },
   });
   return res.json();
