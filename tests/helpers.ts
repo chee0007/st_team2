@@ -26,7 +26,9 @@ export async function setupVirtualAuthenticator(page: Page): Promise<VirtualAuth
   return { client, authenticatorId };
 }
 
-export async function teardownVirtualAuthenticator(va: VirtualAuthenticator): Promise<void> {
+export async function teardownVirtualAuthenticator(va?: VirtualAuthenticator): Promise<void> {
+  if (!va) return;
+
   await va.client.send('WebAuthn.removeVirtualAuthenticator', {
     authenticatorId: va.authenticatorId,
   });
@@ -62,9 +64,13 @@ export async function createTodo(
   page: Page,
   options: { title: string; priority?: string },
 ): Promise<void> {
-  // TODO: Implement when Person 2 builds the main UI
-  void page;
-  void options;
+  await page.fill('input[placeholder="What do you need to do?"]', options.title);
+
+  if (options.priority) {
+    await page.selectOption('section:has-text("Add Todo") select', options.priority);
+  }
+
+  await page.click('button:has-text("Add")');
 }
 
 export async function addSubtask(
