@@ -3,6 +3,9 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Template, Priority, RecurrencePattern } from '@/lib/db';
+import { REMINDER_LABELS, REMINDER_OPTIONS } from '@/lib/reminder-utils';
+import type { ReminderMinutes } from '@/lib/reminder-utils';
+import { useNotifications } from '@/lib/hooks/useNotifications';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -19,7 +22,41 @@ const PRIORITY_CLASSES: Record<Priority, string> = {
   low: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300',
 };
 
-// ─── SaveTemplateModal ────────────────────────────────────────────────────────
+// ─── Notification toggle ─────────────────────────────────────────────────────
+
+function NotificationToggle() {
+  const { permission, requestPermission } = useNotifications();
+  const enabled = permission === 'granted';
+  return (
+    <button
+      onClick={requestPermission}
+      disabled={enabled}
+      title={enabled ? 'Browser notifications are on' : 'Click to enable browser reminders'}
+      className={
+        enabled
+          ? 'px-3 py-1.5 text-sm rounded-lg bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 cursor-default'
+          : 'px-3 py-1.5 text-sm rounded-lg bg-orange-500 text-white hover:bg-orange-600 transition-colors'
+      }
+    >
+      {enabled ? '🔔 Notifications On' : '🔔 Enable Notifications'}
+    </button>
+  );
+}
+
+// ── Reminder badge (for use in todo list rows — Person 2 integration point) ──
+
+function ReminderBadge({ minutes }: { minutes: ReminderMinutes }) {
+  return (
+    <span className="px-1.5 py-0.5 rounded bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300 text-xs font-medium">
+      🔔 {REMINDER_LABELS[minutes]}
+    </span>
+  );
+}
+
+// ─── Reminder select options (exported for Person 2 / todo create-edit form) ──
+
+
+
 
 interface TemplateDraft {
   title: string;
@@ -316,6 +353,7 @@ export default function HomePage() {
       <div className="flex justify-between items-center mb-8 flex-wrap gap-3">
         <h1 className="text-2xl font-bold">Todo App</h1>
         <div className="flex items-center gap-2 flex-wrap">
+          <NotificationToggle />
           <button
             onClick={() => setShowTemplateManager(true)}
             className="px-3 py-1.5 text-sm bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800/40 transition-colors"

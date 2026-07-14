@@ -5,7 +5,8 @@ import path from 'path';
 
 export type Priority = 'high' | 'medium' | 'low';
 export type RecurrencePattern = 'daily' | 'weekly' | 'monthly' | 'yearly';
-export type ReminderMinutes = 15 | 30 | 60 | 120 | 1440 | 2880 | 10080;
+export type { ReminderMinutes } from './reminder-utils';
+export { REMINDER_LABELS } from './reminder-utils';
 
 export interface User {
   id: number;
@@ -338,6 +339,29 @@ export const todoDB = {
 
   delete(id: number, userId: number): void {
     db.prepare('DELETE FROM todos WHERE id = ? AND user_id = ?').run(id, userId);
+  },
+
+  /**
+   * Returns todos for the user whose reminder window has opened but whose
+   * notification has not yet been sent.
+   * All time comparisons are Singapore-local (UTC+8) via datetime('now','+8 hours').
+   * Capped to windows that opened within the last 24 h to avoid a flood of stale
+   * notifications after a long-closed tab reopens.
+   */
+  findDueReminders(userId: number): Todo[] {
+    const rows = db.prepare(`
+      SELECT * FROM todos
+      WHERE user_id = ?
+        AND completed = 0
+        AND due_date IS NOT NULL
+        AND reminder_minutes IS NOT NULL
+        AND last_notification_sent IS NULL
+        AND datetime(due_date, '-' || CAST(reminder_minutes AS TEXT) || ' minutes')
+              <= datetime('now', '+8 hours')
+        AND datetime(due_date, '-' || CAST(reminder_minutes AS TEXT) || ' minutes')
+              >= datetime('now', '+8 hours', '-24 hours')
+    `).all(userId) as Record<string, unknown>[];
+    return rows.map(rawToTodo);
   },
 };
 
