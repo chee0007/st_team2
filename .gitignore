@@ -1,0 +1,22 @@
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Build artifacts
+tsconfig.tsbuildinfo
+
+# Database
+todos.db
+todos.db-journal
+todos.db-wal
+todos.db-shm
+
+# Environment variables (contain secrets)
+.env.local
+.env*.local
+
+# Playwright
+playwright-report/
+test-results/
