@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Template, Priority, RecurrencePattern, Todo } from '@/lib/db';
 import { sectionTodos } from '@/lib/todo-sort';
@@ -530,6 +530,12 @@ export default function HomePage() {
 
   // Notification: todo created from template
   const [templateUseMessage, setTemplateUseMessage] = useState<string | null>(null);
+  const [importMessage, setImportMessage] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
+  const [importing, setImporting] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetch('/api/auth/me')
@@ -593,6 +599,59 @@ export default function HomePage() {
     const res = await fetch(`/api/templates/${id}`, { method: 'DELETE' });
     if (res.ok || res.status === 204) {
       setTemplates((prev) => prev.filter((t) => t.id !== id));
+    }
+  }
+
+  function downloadExport(format: 'json' | 'csv') {
+    window.location.href = `/api/todos/export?format=${format}`;
+  }
+
+  async function handleImportFile(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    setImportMessage(null);
+
+    try {
+      const text = await file.text();
+      const body = JSON.parse(text) as unknown;
+
+      const response = await fetch('/api/todos/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+      const payload = (await response.json()) as {
+        imported?: number;
+        error?: string;
+      };
+
+      if (!response.ok) {
+        throw new Error(payload.error ?? 'Failed to import todos');
+      }
+
+      setImportMessage({
+        type: 'success',
+        text: `Successfully imported ${payload.imported ?? 0} todos`,
+      });
+      await loadTodos();
+    } catch (error) {
+      setImportMessage({
+        type: 'error',
+        text:
+          error instanceof SyntaxError
+            ? 'Invalid JSON format'
+            : error instanceof Error
+              ? error.message
+              : 'Failed to import todos',
+      });
+    } finally {
+      setImporting(false);
+      if (importInputRef.current) {
+        importInputRef.current.value = '';
+      }
     }
   }
 
@@ -756,6 +815,34 @@ export default function HomePage() {
         <h1 className="text-2xl font-bold">Todo App</h1>
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            onClick={() => downloadExport('json')}
+            className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
+          >
+            Export JSON
+          </button>
+          <button
+            onClick={() => downloadExport('csv')}
+            className="px-3 py-1.5 text-sm bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg transition-colors"
+          >
+            Export CSV
+          </button>
+          <button
+            onClick={() => importInputRef.current?.click()}
+            disabled={importing}
+            className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-lg disabled:opacity-60 transition-colors"
+          >
+            {importing ? 'Importing...' : 'Import'}
+          </button>
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            className="hidden"
+            onChange={(event) => {
+              void handleImportFile(event);
+            }}
+          />
+          <button
             onClick={() => setShowTemplateManager(true)}
             className="px-3 py-1.5 text-sm bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded-lg hover:bg-indigo-200 dark:hover:bg-indigo-800/40 transition-colors"
           >
@@ -775,6 +862,18 @@ export default function HomePage() {
       {templateUseMessage && (
         <div className="mb-4 px-4 py-2 bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-lg text-sm">
           ✓ {templateUseMessage}
+        </div>
+      )}
+
+      {importMessage && (
+        <div
+          className={`mb-4 px-4 py-2 rounded-lg text-sm ${
+            importMessage.type === 'success'
+              ? 'bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300'
+              : 'bg-red-100 dark:bg-red-900/40 text-red-700 dark:text-red-300'
+          }`}
+        >
+          {importMessage.text}
         </div>
       )}
 
