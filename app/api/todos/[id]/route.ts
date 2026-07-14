@@ -1,126 +1,116 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
-import { todoDB, subtaskDB, tagDB } from '@/lib/db';
-import { getSingaporeNow } from '@/lib/timezone';
-import type { Priority, RecurrencePattern } from '@/lib/db';
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getSession } from "@/lib/auth";
+import { type Priority, todoDB } from "@/lib/db";
+import { isAtLeastOneMinuteInFuture, parseISODate } from "@/lib/timezone";
 
-function calculateNextDueDate(current: string, pattern: RecurrencePattern): string {
-  const d = new Date(current);
-  switch (pattern) {
-    case 'daily':
-      d.setDate(d.getDate() + 1);
-      break;
-    case 'weekly':
-      d.setDate(d.getDate() + 7);
-      break;
-    case 'monthly': {
-      const day = d.getDate();
-      d.setMonth(d.getMonth() + 1);
-      // Clamp to last day of new month
-      const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
-      d.setDate(Math.min(day, lastDay));
-      break;
-    }
-    case 'yearly': {
-      const day = d.getDate();
-      const month = d.getMonth();
-      d.setFullYear(d.getFullYear() + 1);
-      // Feb 29 → Feb 28 on non-leap year
-      const lastDay = new Date(d.getFullYear(), month + 1, 0).getDate();
-      d.setDate(Math.min(day, lastDay));
-      break;
-    }
+const updateTodoSchema = z.object({
+  title: z.string().trim().min(1).optional(),
+  completed: z.boolean().optional(),
+  due_date: z.string().datetime().nullable().optional(),
+  priority: z.enum(["high", "medium", "low"]).optional(),
+});
+
+function parseId(id: string): number | null {
+  const value = Number(id);
+  if (!Number.isInteger(value) || value <= 0) {
+    return null;
   }
-  return d.toISOString().slice(0, 16); // YYYY-MM-DDTHH:mm
+  return value;
 }
 
 export async function GET(
-  request: NextRequest,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
   const { id } = await params;
-  const todo = todoDB.findById(Number(id), session.userId);
-  if (!todo) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const todoId = parseId(id);
+  if (!todoId) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  }
 
-  return NextResponse.json({
-    ...todo,
-    subtasks: subtaskDB.findByTodoId(todo.id),
-    tags: tagDB.findByTodoId(todo.id),
-  });
+  const todo = todoDB.findById(todoId, session.userId);
+  if (!todo) {
+    return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true, data: todo });
 }
 
 export async function PUT(
-  request: NextRequest,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
   const { id } = await params;
-  const body = await request.json();
-  const todo = todoDB.findById(Number(id), session.userId);
-  if (!todo) return NextResponse.json({ error: 'Not found' }, { status: 404 });
+  const todoId = parseId(id);
+  if (!todoId) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  }
 
-  // Handle recurring completion: create next instance before marking done
-  if (body.completed === true && todo.is_recurring && todo.recurrence_pattern && todo.due_date) {
-    const nextDueDate = calculateNextDueDate(todo.due_date, todo.recurrence_pattern);
-    const nextTodo = todoDB.create({
-      user_id: session.userId,
-      title: todo.title,
-      due_date: nextDueDate,
-      priority: todo.priority as Priority,
-      is_recurring: true,
-      recurrence_pattern: todo.recurrence_pattern as RecurrencePattern,
-      reminder_minutes: todo.reminder_minutes ?? null,
+  try {
+    const input = updateTodoSchema.parse(await request.json());
+
+    if (input.due_date) {
+      const parsed = parseISODate(input.due_date);
+      if (Number.isNaN(parsed.getTime())) {
+        return NextResponse.json({ error: "Invalid due date" }, { status: 400 });
+      }
+      if (!isAtLeastOneMinuteInFuture(parsed)) {
+        return NextResponse.json(
+          { error: "Due date must be at least 1 minute in the future" },
+          { status: 400 }
+        );
+      }
+    }
+
+    const todo = todoDB.update(todoId, session.userId, {
+      title: input.title?.trim(),
+      completed: input.completed,
+      due_date: input.due_date,
+      priority: input.priority as Priority | undefined,
     });
-    // Copy tags
-    const currentTags = tagDB.findByTodoId(todo.id);
-    for (const tag of currentTags) {
-      tagDB.attachToTodo(nextTodo.id, tag.id);
+
+    if (!todo) {
+      return NextResponse.json({ error: "Todo not found" }, { status: 404 });
     }
+
+    return NextResponse.json({ success: true, data: todo });
+  } catch {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
-
-  const updated = todoDB.update(Number(id), session.userId, {
-    title: body.title?.trim() ?? todo.title,
-    completed: body.completed ?? todo.completed,
-    due_date: 'due_date' in body ? (body.due_date ?? null) : todo.due_date,
-    priority: body.priority ?? todo.priority,
-    is_recurring: body.is_recurring ?? todo.is_recurring,
-    recurrence_pattern: body.recurrence_pattern ?? todo.recurrence_pattern,
-    reminder_minutes: 'reminder_minutes' in body ? (body.reminder_minutes ?? null) : todo.reminder_minutes,
-  });
-
-  // Update tags if provided
-  if (Array.isArray(body.tag_ids)) {
-    const currentTags = tagDB.findByTodoId(Number(id));
-    for (const tag of currentTags) {
-      tagDB.detachFromTodo(Number(id), tag.id);
-    }
-    for (const tagId of body.tag_ids) {
-      tagDB.attachToTodo(Number(id), tagId);
-    }
-  }
-
-  return NextResponse.json({
-    ...updated,
-    subtasks: subtaskDB.findByTodoId(Number(id)),
-    tags: tagDB.findByTodoId(Number(id)),
-  });
 }
 
 export async function DELETE(
-  request: NextRequest,
+  _request: Request,
   { params }: { params: Promise<{ id: string }> }
-) {
+): Promise<NextResponse> {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
   const { id } = await params;
-  const todo = todoDB.findById(Number(id), session.userId);
-  if (!todo) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-  todoDB.delete(Number(id), session.userId);
+  const todoId = parseId(id);
+  if (!todoId) {
+    return NextResponse.json({ error: "Invalid id" }, { status: 400 });
+  }
+
+  const existing = todoDB.findById(todoId, session.userId);
+  if (!existing) {
+    return NextResponse.json({ error: "Todo not found" }, { status: 404 });
+  }
+
+  todoDB.delete(todoId, session.userId);
+
   return NextResponse.json({ success: true });
 }

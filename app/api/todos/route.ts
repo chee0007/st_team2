@@ -1,50 +1,60 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getSession } from '@/lib/auth';
-import { todoDB, subtaskDB, tagDB } from '@/lib/db';
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { getSession } from "@/lib/auth";
+import { type Priority, todoDB } from "@/lib/db";
+import { isAtLeastOneMinuteInFuture, parseISODate } from "@/lib/timezone";
 
-export async function GET() {
+const prioritySchema = z.enum(["high", "medium", "low"]);
+
+const createTodoSchema = z.object({
+  title: z.string().trim().min(1),
+  due_date: z.string().datetime().nullable().optional(),
+  priority: prioritySchema.optional(),
+});
+
+export async function GET(): Promise<NextResponse> {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
 
   const todos = todoDB.findAllByUser(session.userId);
-  const enriched = todos.map((todo) => ({
-    ...todo,
-    subtasks: subtaskDB.findByTodoId(todo.id),
-    tags: tagDB.findByTodoId(todo.id),
-  }));
-  return NextResponse.json(enriched);
+  return NextResponse.json({ success: true, data: todos });
 }
 
-export async function POST(request: NextRequest) {
+export async function POST(request: Request): Promise<NextResponse> {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-
-  const body = await request.json();
-  const title = body.title?.trim();
-  if (!title) {
-    return NextResponse.json({ error: 'Title is required' }, { status: 400 });
+  if (!session) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const todo = todoDB.create({
-    user_id: session.userId,
-    title,
-    due_date: body.due_date ?? null,
-    priority: body.priority ?? 'medium',
-    is_recurring: body.is_recurring ?? false,
-    recurrence_pattern: body.recurrence_pattern ?? null,
-    reminder_minutes: body.reminder_minutes ?? null,
-  });
+  try {
+    const input = createTodoSchema.parse(await request.json());
+    const title = input.title.trim();
+    const dueDate = input.due_date ?? null;
 
-  // Attach tags if provided
-  if (Array.isArray(body.tag_ids)) {
-    for (const tagId of body.tag_ids) {
-      tagDB.attachToTodo(todo.id, tagId);
+    if (dueDate) {
+      const parsed = parseISODate(dueDate);
+      if (Number.isNaN(parsed.getTime())) {
+        return NextResponse.json({ error: "Invalid due date" }, { status: 400 });
+      }
+      if (!isAtLeastOneMinuteInFuture(parsed)) {
+        return NextResponse.json(
+          { error: "Due date must be at least 1 minute in the future" },
+          { status: 400 }
+        );
+      }
     }
-  }
 
-  return NextResponse.json({
-    ...todo,
-    subtasks: [],
-    tags: tagDB.findByTodoId(todo.id),
-  }, { status: 201 });
+    const todo = todoDB.create({
+      user_id: session.userId,
+      title,
+      due_date: dueDate,
+      priority: (input.priority ?? "medium") as Priority,
+    });
+
+    return NextResponse.json({ success: true, data: todo }, { status: 201 });
+  } catch {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
 }
