@@ -956,6 +956,12 @@ export default function HomePage() {
         <h1 className="text-2xl font-bold">Todo App</h1>
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            onClick={() => router.push('/calendar')}
+            className="px-3 py-1.5 text-sm bg-violet-600 hover:bg-violet-700 text-white rounded-lg transition-colors"
+          >
+            Calendar
+          </button>
+          <button
             onClick={() => downloadExport('json')}
             className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
           >

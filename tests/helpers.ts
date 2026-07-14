@@ -60,14 +60,33 @@ export async function login(page: Page, username: string): Promise<void> {
 
 // ΓöÇΓöÇΓöÇ Todo helpers (stub ΓÇö implemented by Person 2) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
 
+type CreateTodoOptions = {
+  title: string;
+  priority?: string;
+  dueDate?: string;
+};
+
 export async function createTodo(
   page: Page,
-  options: { title: string; priority?: string },
+  optionsOrTitle: CreateTodoOptions | string,
+  extra?: { dueDate?: string; priority?: string },
 ): Promise<void> {
+  const options: CreateTodoOptions =
+    typeof optionsOrTitle === 'string'
+      ? { title: optionsOrTitle, priority: extra?.priority, dueDate: extra?.dueDate }
+      : optionsOrTitle;
+
   await page.fill('input[placeholder="What do you need to do?"]', options.title);
 
   if (options.priority) {
     await page.selectOption('section:has-text("Add Todo") select', options.priority);
+  }
+
+  if (options.dueDate) {
+    const value = options.dueDate.includes('T')
+      ? options.dueDate.slice(0, 16)
+      : `${options.dueDate}T09:00`;
+    await page.fill('input[type="datetime-local"]', value);
   }
 
   await page.click('button:has-text("Add")');
